@@ -1,16 +1,19 @@
+import pprint
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import torchaudio
 from torch.utils.data import DataLoader
-
+from torch.utils.checkpoint import checkpoint
 import os
 import pprint
 import glob
 from downstream import *
-
+import speechmetrics
+import math
 from typing import List, Dict
+import time
 
 
 class SSMLayerFFTComplex(nn.Module):
@@ -53,13 +56,14 @@ class SSMLayerFFTComplex(nn.Module):
         imag = self.raw_omega
         λ_pair = real + 1j * imag                             # (num_pairs,)
         λ_c = torch.cat([λ_pair, λ_pair.conj()], dim=0).to(device)  # (state_dim,)
-
-        # 2) form full B_c, C by duplicating pairs
+         # 2) form full B_c, C by duplicating pairs
         B_c_full = torch.cat([self.B_c_pair, self.B_c_pair], dim=1)  # (in_ch, state_dim)
         C_full   = torch.cat([self.C_pair,   self.C_pair],   dim=0)  # (state_dim, out_ch)
 
         # 3) discrete ZOH → A_d_diag (complex), B_d (complex)
-        A_d_diag, B_d = c2d_zoh_complex(λ_c, B_c_full, self.dt)   # :contentReference[oaicite:1]{index=1}
+        A_d_diag, B_d = c2d_zoh_complex(λ_c, B_c_full, self.dt)
+        # now that B_d exists (complex), cast C_full to the same dtype
+        C_full = C_full.to(device).to(B_d.dtype)
 
         # h = h_iot.real.permute(2, 0, 1).contiguous()
         # 4) build complex impulse response h_complex over length T via matmul
@@ -78,22 +82,29 @@ class SSMLayerFFTComplex(nn.Module):
         h = h_iot.real.permute(2, 0, 1).contiguous()
 
         # 5) FFT-based linear convolution (parallelized)
-        L = 2 * T - 1
-        nfft = 1 << (L - 1).bit_length()
-        U = torch.fft.rfft(u,   nfft)    # (B, in_ch, F)
-        H = torch.fft.rfft(h,   nfft)    # (out_ch, in_ch, F)
-        Yf = torch.einsum('bif,oif->bof', U, H)
-        y  = torch.fft.irfft(Yf, nfft)[..., :T]  # trim to length T
+        # ensure L is a Python int so bit_length() exists
+        L_val = int(2 * T - 1)
+        # next power-of-two >= L_val
+        nfft = 1 << (L_val - 1).bit_length()
 
+        # Option B: use math to next power of two
+        # nfft = 2 ** math.ceil(math.log2(L))
+
+        U = torch.fft.rfft(u,   nfft)
+        H = torch.fft.rfft(h,   nfft)
+        Yf = torch.einsum('bif,oif->bof', U, H)
+        y  = torch.fft.irfft(Yf, nfft)[..., :T]
         # 6) at inference (self.training==False), use online complex recurrence
         if not self.training:
             s = torch.zeros(B, self.state_dim, device=device, dtype=torch.cfloat)
             outs = []
             for ti in range(T):
-                u_t = u[..., ti]                 # (B, in_ch)
-                s = A_d_diag.unsqueeze(0) * s + u_t @ B_d
-                outs.append((s @ C_full).real)   # real part only
+                # cast this slice to complex so matmul matches B_d.dtype
+                u_t = u[..., ti].to(B_d.dtype)           # now complex64
+                s = A_d_diag.unsqueeze(0) * s  + u_t @ B_d # complex × complex  complex @ complex
+                outs.append((s @ C_full).real)          # real part only
             y = torch.stack(outs, dim=-1)
+
 
         return y
 def c2d_zoh_complex(A_c_diag: torch.Tensor, B_c: torch.Tensor, dt: float):
@@ -137,7 +148,7 @@ class SSMLayerZOH(nn.Module):
 
         # 1) discretize A_c, B_c → A_d, B_d
         λ_c = -F.softplus(self.raw_lambda)  # continuous λᵢ < 0
-        A_d_diag, B_d = c2d_zoh(λ_c, self.B_c, self.dt)  # :contentReference[oaicite:0]{index=0}
+        A_d_diag, B_d = c2d_zoh_complex(λ_c, self.B_c, self.dt)  # :contentReference[oaicite:0]{index=0}
 
         # 2) run recurrence: sₜ = A_d s_{t−1} + B_dᵀ uₜ, yₜ = C sₜ
         s = torch.zeros(batch, self.state_dim, device=device)
@@ -166,32 +177,54 @@ class EncoderBlock(nn.Module):
         self.act      = nn.SiLU()
 
     def forward(self, x):
-        if self.use_preconv:
-            x = self.preconv(x)
-        x = self.ssm(x)
-        x = x.permute(0, 2, 1)
-        x = self.norm(x)
-        x = self.act(x)
-        x = x.permute(0, 2, 1)
-        x = self.resample(x)
-        return x
+            # x: (B, C, T)
+            if self.use_preconv:
+                x = self.preconv(x)
+            x = self.ssm(x)
+
+            # choose permutation based on norm type
+            if isinstance(self.norm, nn.BatchNorm1d):
+                # for BN1d we want (B, C, T)
+                x = self.norm(x)
+                x = self.act(x)
+            else:
+                # for LayerNorm we want (B, T, C)
+                x = x.permute(0, 2, 1)
+                x = self.norm(x)
+                x = self.act(x)
+                x = x.permute(0, 2, 1)
+
+            x = self.resample(x)
+            return x
 
 
 
 class DecoderBlock(nn.Module):
     def __init__(self, in_ch, out_ch, resample, use_preconv=False):
         super().__init__()
-        # paper omits PreConv in decoder
-        self.ssm = SSMLayerZOH(in_ch, out_ch)
+        self.ssm      = SSMLayerZOH(in_ch, out_ch)
         self.resample = Resample(out_ch, out_ch, resample)
-        self.norm = nn.LayerNorm(out_ch)
-        self.act  = nn.SiLU()
+        # default to LayerNorm; VariantATENNuate may replace this with BatchNorm1d
+        self.norm     = nn.LayerNorm(out_ch)
+        self.act      = nn.SiLU()
+
     def forward(self, x):
-        x = self.ssm(x)
-        x = x.permute(0, 2, 1)
-        x = self.norm(x)
-        x = self.act(x)
-        x = x.permute(0, 2, 1)
+        # x: (B, C, T)
+        x = self.ssm(x)  # → (B, out_ch, T)
+
+        # apply normalization + activation
+        if isinstance(self.norm, nn.BatchNorm1d):
+            # BatchNorm1d expects (B, C, T)
+            x = self.norm(x)
+            x = self.act(x)
+        else:
+            # LayerNorm expects (B, T, C)
+            x = x.permute(0, 2, 1)      # → (B, T, C)
+            x = self.norm(x)
+            x = self.act(x)
+            x = x.permute(0, 2, 1)      # → (B, C, T)
+
+        # then resample
         x = self.resample(x)
         return x
 
@@ -210,24 +243,35 @@ class PreConv(nn.Module):
         return x[:, :, :-2]  # remove the extra padding at the end
 
 # --- Resampling layer (squeeze/expand) --------------------------------------
+
 class Resample(nn.Module):
     def __init__(self, in_ch, out_ch, factor):
         super().__init__()
         self.factor = factor
         self.proj = nn.Conv1d(in_ch * factor, out_ch, kernel_size=1)
+
     def forward(self, x):
         # x: (B, C, T)
-        B, C, T = x.size()
+        B, C, T = x.shape
         if self.factor > 1:
-            # downsample: squeeze time
+            # pad time to a multiple of factor
+            pad = (-T) % self.factor
+            if pad > 0:
+                # pad on the right
+                x = F.pad(x, (0, pad))
+                T = T + pad
+
+            # now safe to reshape
             x = x.view(B, C, T // self.factor, self.factor)
-            x = x.permute(0, 1, 3, 2).contiguous()  # (B, C, r, T')
+            x = x.permute(0, 1, 3, 2).contiguous()  # (B, C, factor, T')
             x = x.view(B, C * self.factor, T // self.factor)
+            return self.proj(x)
+
         else:
             # upsample: expand time
             x = x.unsqueeze(-1).expand(-1, -1, -1, self.factor)
             x = x.contiguous().view(B, C * self.factor, T)
-        return self.proj(x)
+            return self.proj(x)
 
 
 # --- Causal PreConv --------------------------------------------------------
@@ -256,7 +300,7 @@ class CausalPreConv(nn.Module):
 
 # --- Full Model w/ Latency Accounting --------------------------------------
 class ATENNuate(nn.Module):
-    def __init__(self, sample_rate=16000):
+    def __init__(self, sample_rate: int = 16000):
         super().__init__()
         # sample period (seconds per sample)
         self.dt = 1.0 / sample_rate
@@ -292,6 +336,15 @@ class ATENNuate(nn.Module):
             DecoderBlock(ic, oc, r)
             for ic, oc, r in dec_specs
         ])
+        # for each decoder, a 1×1 conv to align encoder→decoder channels
+        self.skip_projs = nn.ModuleList([
+            nn.Conv1d(256, 128, 1),  # enc5→dec0
+            nn.Conv1d(128,  96, 1),  # enc4→dec1
+            nn.Conv1d( 96,  64, 1),  # enc3→dec2
+            nn.Conv1d( 64,  32, 1),  # enc2→dec3
+            nn.Conv1d( 32,  16, 1),  # enc1→dec4
+            nn.Conv1d( 16,   1, 1),  # enc0→dec5 (optional—often you skip this last residual)
+        ])
 
     def forward(self, x):
         skips = []
@@ -299,9 +352,11 @@ class ATENNuate(nn.Module):
             x = enc(x)
             skips.append(x)
         x = self.neck(x)
-        for dec in self.decoders:
+        for idx, dec in enumerate(self.decoders):
             x = dec(x)
             skip = skips.pop()
+            # align channels
+            skip = self.skip_projs[idx](skip)
             if skip.size(2) != x.size(2):
                 x = F.pad(x, (0, skip.size(2) - x.size(2)))
             x = x + skip
@@ -379,54 +434,63 @@ def load_waveforms_from_dir(
             wav = resampler(wav)
         waves.append(wav)                       # list of (1, T)
     return waves
-def pad_collate(batch):
-    # batch: list of (noisy [1,L_i], clean [1,L_i])
-    L_max = max(x[0].size(1) for x in batch)
-    padded_noisy, padded_clean = [], []
-    for noisy, clean in batch:
-        pad = L_max - noisy.size(1)
-        padded_noisy.append(F.pad(noisy, (0, pad)))
-        padded_clean.append(F.pad(clean, (0, pad)))
-    return torch.stack(padded_noisy), torch.stack(padded_clean)
+def pad_collate_sr(batch):
+    """
+    batch: list of (y_sr, y) pairs, each shape (1, L_i)
+    returns: (ysr_batch, y_batch) both (B, 1, L_max)
+    """
+    L_max = max(item[0].size(1) for item in batch)
+    padded_ysr, padded_y = [], []
+    for ysr, y in batch:
+        pad = L_max - ysr.size(1)
+        padded_ysr.append(F.pad(ysr, (0, pad)))
+        padded_y.append(F.pad(y,    (0, pad)))
+    return torch.stack(padded_ysr, dim=0), torch.stack(padded_y, dim=0)
 
 if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print("Running on", "GPU" if device.type=='cuda' else "CPU")
     SAMPLE_RATE = 16000
 
-    # 1) Load your WAVs (must exist under these folders)
-    # clean_train = load_waveforms_from_dir('/home/kek/Documents/bakis/spektro/irasai/train', SAMPLE_RATE)
-    # noisy_train = load_waveforms_from_dir('/home/kek/Documents/bakis/spektro/irasai/train/noisy', SAMPLE_RATE)
-    # clean_val   = load_waveforms_from_dir('/home/kek/Documents/bakis/spektro/irasai/val',   SAMPLE_RATE)
-    # noisy_val   = load_waveforms_from_dir('/home/kek/Documents/bakis/spektro/irasai/val/noisy',   SAMPLE_RATE)
-
-
-    dataset = MultiNoisyFileDataset(
-        clean_dir='/home/kek/Documents/bakis/spektro/irasai/train',
-        noisy_dir='/home/kek/Documents/bakis/spektro/irasai/train/noisy',
+    # --- 1) Build the denoising dataset + loaders ----------------------
+    full_ds = MultiNoisyFileDataset(
+        clean_dir='./irasai/train',
+        noisy_dir='./irasai/train/noisy',
         factor=8,
-        sample_rate=16000
-        # optional: 1 sec chunks
+        sample_rate=SAMPLE_RATE,
+        target_len=16000   # 4-second chunks
     )
-    print(len(dataset))
-    dataset_len = len(dataset)
-    train_len   = int(dataset_len * 0.8)
-    val_len     = dataset_len - train_len
-    train_ds, val_ds = torch.utils.data.random_split(dataset, [train_len, val_len])
-    train_loader = DataLoader(train_ds, batch_size=8, shuffle=True, collate_fn=pad_collate)
-    val_loader   = DataLoader(val_ds,   batch_size=8, shuffle=False, collate_fn=pad_collate)
-    
-    clean_sr = load_waveforms_from_dir(
-        '/home/kek/Documents/bakis/spektro/irasai/train',  # or wherever your SR-clean lives
-        SAMPLE_RATE
-    )
-    sr_train_loader, sr_val_loader = make_sr_loader(clean_sr, batch_size=8)
+    ds_len = len(full_ds)
+    train_len = int(0.8 * ds_len)
+    val_len   = ds_len - train_len
+    train_ds, val_ds = torch.utils.data.random_split(full_ds, [train_len, val_len])
+    train_loader = DataLoader(train_ds, batch_size=8, shuffle=True)
+    val_loader   = DataLoader(val_ds,   batch_size=8, shuffle=False)
 
-    # 3) Hyperparams
-    num_epochs = 100
+    # --- 2) Build the SR dataset + loaders -----------------------------
+    clean_sr = load_waveforms_from_dir('./irasai/train', SAMPLE_RATE)
+    sr_full_ds = SuperResolutionDataset(
+        clean_sr,
+        sample_rate=SAMPLE_RATE,
+        target_len=64000  # same 4-sec window
+    )
+    sr_train_ds, sr_val_ds = torch.utils.data.random_split(
+        sr_full_ds,
+        [int(0.8 * len(sr_full_ds)), len(sr_full_ds) - int(0.8 * len(sr_full_ds))]
+    )
+    sr_train_loader = DataLoader(
+        sr_train_ds, batch_size=8, shuffle=True, collate_fn=pad_collate_sr
+    )
+    sr_val_loader = DataLoader(
+        sr_val_ds, batch_size=8, shuffle=False, collate_fn=pad_collate_sr
+    )
+
+    # --- 3) Hyperparams & criteria -------------------------------------
+    num_epochs = 2
     denoise_criterion = nn.SmoothL1Loss()
     sr_criterion      = nn.L1Loss()
 
-    # 4) Ablation loop
+    # --- 4) Ablation loop ------------------------------------------------
     variants = [
         {'use_preconv': True,  'norm': 'layernorm', 'activation': 'silu'},
         {'use_preconv': False, 'norm': 'layernorm', 'activation': 'silu'},
@@ -436,43 +500,65 @@ if __name__ == "__main__":
     results = {}
 
     for v in variants:
-        name = f"preconv={v['use_preconv']},norm={v['norm']},act={v['activation']}"
-        print(f"\n=== Variant: {name} ===")
+        prefix   = f"preconv_{v['use_preconv']}_norm_{v['norm']}_act_{v['activation']}"
+        ckpt_dir = "checkpoints"
+        os.makedirs(ckpt_dir, exist_ok=True)
 
-        model = VariantATENNuate(**v).to(device)
-        optimizer = optim.AdamW(model.parameters(), lr=5e-3, weight_decay=0.02)
-        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs)
+        # 1) Instantiate fresh model / optimizer / scheduler
+        model     = VariantATENNuate(**v).to(device)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=5e-3, weight_decay=0.02)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs)
 
-        # A) Train denoiser
-        for epoch in range(1, num_epochs+1):
-            loss = train_epoch(model, train_loader, optimizer,
-                               denoise_criterion, device)
-            if epoch % 10 == 0:
-                print(f"  Epoch {epoch:3d} denoise loss={loss:.4f}")
+        # 2) Resume from latest checkpoint, if any
+        pattern    = os.path.join(ckpt_dir, f"{prefix}_e*.pth")
+        candidates = sorted(glob.glob(pattern), key=os.path.getmtime)
+        if candidates:
+            latest = candidates[-1]
+            print(f"🔄 Resuming {prefix} from {latest}")
+            ckpt = torch.load(latest, map_location=device)
+            model.load_state_dict(      ckpt['model_state_dict'])
+            optimizer.load_state_dict(  ckpt['optimizer_state_dict'])
+            scheduler.load_state_dict(  ckpt['scheduler_state_dict'])
+            start_epoch = ckpt['epoch'] + 1
+        else:
+            # print(f"Starting {prefix} from scratch")
+            start_epoch = 1
+
+        # 3) Training loop
+        for epoch in range(start_epoch, num_epochs + 1):
+            start = time.time()
+            loss = train_epoch(model, train_loader, optimizer, denoise_criterion, device)
             scheduler.step()
+            elapsed = time.time() - start
+            print(f"[{prefix}] Epoch {epoch:3d} — loss={loss:.4f} — {elapsed:.1f}s")
 
-        # B) Eval denoiser
-        den_metrics = eval_epoch(model, val_loader, device)
-        print("  Denoise metrics:", den_metrics)
 
-        # C) Profile
-        prof = profile_model(model, input_shape=(1,1,SAMPLE_RATE),
-                             sample_rate=SAMPLE_RATE)
-        print("  Profile:", prof)
+            # 4) Periodic checkpoint
+            if epoch % 10 == 0 or epoch == num_epochs:
+                ckpt_path = os.path.join(ckpt_dir, f"{prefix}_e{epoch}.pth")
+                torch.save({
+                    'model_state_dict':     model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'scheduler_state_dict': scheduler.state_dict(),
+                    'epoch':                epoch,
+                    'variant':              v,
+                }, ckpt_path)
+                # print(f"Saved checkpoint {ckpt_path}")
 
-        # D) Train & Eval SR
-        for _ in range(num_epochs // 2):
-            _ = train_epoch(model, sr_train_loader, optimizer,
-                            sr_criterion, device)
-        sr_metrics = eval_epoch(model, sr_val_loader, device)
-        print("  SR metrics:", sr_metrics)
+    # 5) Once training is done for this variant, run evaluation & profiling
+    den_metrics = eval_epoch(model, val_loader, device)
+    prof        = profile_model(model, input_shape=(1,1,SAMPLE_RATE))
 
-        results[name] = {
-            'denoise': den_metrics,
-            'sr': sr_metrics,
-            'profile': prof
-        }
+    # store into results
+    results[prefix] = {
+        'denoise': den_metrics,
+        'profile': prof,
+    }
+    print(f"[{prefix}] Denoise metrics:", den_metrics)
+    print(f"[{prefix}] Profile:", prof)
+    print(f"[{prefix}] Denoise metrics:", den_metrics)
+    prof = profile_model(model, input_shape=(1,1,SAMPLE_RATE))
+    print(f"[{prefix}] Profile:", prof)
 
-    # Final report
-    import pprint
+    # --- 5) Final report -----------------------------------------------
     pprint.pprint(results)

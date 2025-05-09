@@ -7,23 +7,34 @@ import glob
 import os
 from main import ATENNuate
 from torch.utils.data import Dataset, DataLoader
+import numpy as np
+import torch.nn.functional as F
+from pesq import pesq as pesq_eval   # pip install pesq
+
 
 # --- Utility: MACs and latency profiler -----------------------------------
 def profile_model(model: nn.Module, input_shape: tuple, sample_rate: int = 16000) -> Dict[str, float]:
     """
     Profiles MACs and computes algorithmic latency for a model.
-    Returns: {"macs": ..., "latency_ms": ...}
+    Returns: {"macs_million": ..., "latency_ms": ...}
     """
     try:
         from fvcore.nn import FlopCountAnalysis
     except ImportError:
         raise ImportError("Please install fvcore for MACs profiling: pip install fvcore")
-    dummy = torch.randn(*input_shape)
-    flops = FlopCountAnalysis(model, dummy)
-    macs = flops.total() / 1e6  # in millions
-    latency = 1000.0 * getattr(model, 'compute_latency', lambda: 0)(sample_rate=sample_rate)
-    return {"macs_million": macs, "latency_ms": latency}
 
+    # make a dummy input on the same device as the model
+    device = next(model.parameters()).device
+    dummy = torch.randn(*input_shape, device=device)
+
+    # Run the flop counter on model + dummy, now both on the same device
+    flops = FlopCountAnalysis(model, dummy)
+    macs   = flops.total() / 1e6  # in millions
+
+    # compute latency (this part doesn’t involve tensors)
+    latency = 1000.0 * getattr(model, 'compute_latency', lambda sr: 0)()
+
+    return {"macs_million": macs, "latency_ms": latency}
 # --- Ablation variants setup ----------------------------------------------
 
 # --- Downstream tasks: super-resolution & de-quantization ----------------
@@ -38,38 +49,42 @@ def mu_law_quantize(x: torch.Tensor, bits: int = 8) -> torch.Tensor:
     return x_q
 
 class SuperResolutionDataset(torch.utils.data.Dataset):
-    """Dataset that simulates 4kHz 4-bit mu-law inputs and provides target at 16kHz."""
-    def __init__(self, clean_waveforms: List[torch.Tensor]):
-        self.clean = clean_waveforms
-        self.down = torchaudio.transforms.Resample(16000, 4000)
-        self.up = torchaudio.transforms.Resample(4000, 16000)
+    """Dataset that simulates 4 kHz 4-bit μ-law inputs and provides 16 kHz targets,
+       cropping/padding to a fixed length if desired."""
+    def __init__(self,
+                 clean_waveforms: List[torch.Tensor],
+                 sample_rate: int = 16000,
+                 target_len: int = None):
+        self.clean       = clean_waveforms
+        self.sample_rate = sample_rate
+        self.target_len  = target_len
+        # build the resamplers based on the provided sample_rate
+        self.down = torchaudio.transforms.Resample(sample_rate, 4000)
+        self.up   = torchaudio.transforms.Resample(4000, sample_rate)
 
     def __len__(self):
         return len(self.clean)
 
     def __getitem__(self, idx):
-        y = self.clean[idx]
-        y4 = self.down(y)
-        y4q = mu_law_quantize(y4, bits=4)
-        y_sr = self.up(y4q)
-        return y_sr.unsqueeze(0), y.unsqueeze(0)
+        y = self.clean[idx]                          # (1, L)
+        y4 = self.down(y)                            # (1, L4)
+        y4q = mu_law_quantize(y4, bits=4)            # (1, L4)
+        y_sr = self.up(y4q)                          # (1, L')
 
-# --- Example: instantiate and profile variants ----------------------------
-if __name__ == '__main__':
-    variants = [
-        {'use_preconv': True,  'norm': 'layernorm', 'activation': 'silu'},
-        {'use_preconv': False, 'norm': 'layernorm', 'activation': 'silu'},
-        {'use_preconv': True,  'norm': 'batchnorm', 'activation': 'relu'},
-        {'use_preconv': False, 'norm': 'batchnorm', 'activation': 'relu'},
-    ]
-    results = {}
-    for v in variants:
-        key = f"preconv={v['use_preconv']}, {v['norm']}, {v['activation']}"
-        model = VariantATENNuate(**v)
-        prof = profile_model(model, input_shape=(1,1,16000), sample_rate=16000)
-        results[key] = prof
-    print(results)
+        # If target_len was specified, crop or pad to exactly that length:
+        if self.target_len is not None:
+            L = y_sr.size(1)
+            T = self.target_len
+            if L > T:
+                start = torch.randint(0, L-T+1, (1,)).item()
+                y_sr = y_sr[:, start:start+T]
+                y    = y   [:, start:start+T]
+            elif L < T:
+                pad = T - L
+                y_sr = F.pad(y_sr, (0, pad))
+                y    = F.pad(y,    (0, pad))
 
+        return y_sr, y
 
 
 # 1) DATALOADERS ------
@@ -90,20 +105,19 @@ def make_denoise_loaders(clean_set: List[torch.Tensor],
 
 def make_sr_loader(clean_set: List[torch.Tensor], batch_size: int = 16):
     ds = SuperResolutionDataset(clean_set)
-    return DataLoader(ds, batch_size, shuffle=True), DataLoader(ds, batch_size, shuffle=False)
-
+    return (
+        DataLoader(ds, batch_size, shuffle=True,  collate_fn=pad_collate_sr),
+        DataLoader(ds, batch_size, shuffle=False, collate_fn=pad_collate_sr),
+    )
 class MultiNoisyFileDataset(Dataset):
     """
     For each clean WAV in clean_dir, finds all noisy WAVs in noisy_dir
     whose stem is clean_stem + '_' + suffix (e.g. '...a0362_5db.wav').
     Flattens into (noisy_path, clean_path) pairs.
     """
-    def __init__(self,
-                 clean_dir: str,
-                 noisy_dir: str,
-                 factor: int = 8,
-                 sample_rate: int = 16000,
-                 target_len: int = None):
+    def __init__(self, clean_dir, noisy_dir,
+                    factor: int, sample_rate: int = 16000,
+                    target_len: int = None):
         """
         clean_dir: directory with clean files like L_RA_F4_DK015_a0362.wav
         noisy_dir: directory with noisy like L_RA_F4_DK015_a0362_5db.wav, etc
@@ -139,6 +153,8 @@ class MultiNoisyFileDataset(Dataset):
                 raise ValueError(f"{clean_key!r}: expected {factor} noisy files, found {len(noisy_list)}")
             for noisy_path in noisy_list:
                 self.pairs.append((noisy_path, clean_path))
+        
+        self.target_len = target_len
 
     def __len__(self):
         return len(self.pairs)
@@ -150,13 +166,12 @@ class MultiNoisyFileDataset(Dataset):
         if sr != self.sample_rate:
             wav = torchaudio.transforms.Resample(sr, self.sample_rate)(wav)
         return wav  # (1, T)
-
     def __getitem__(self, idx):
 
         noisy_path, clean_path = self.pairs[idx]
         stem_noisy = os.path.basename(noisy_path).split('.')[0]
         stem_clean = os.path.basename(clean_path).split('.')[0]
-        print(f"Pairing: {stem_clean}  ←  {stem_noisy}")
+        # print(f"Pairing: {stem_clean}  ←  {stem_noisy}")
         noisy = self._load_and_resample(noisy_path)
         clean = self._load_and_resample(clean_path)
         noisy_path, clean_path = self.pairs[idx]
@@ -203,28 +218,94 @@ def train_epoch(model, loader, optimizer, criterion, device):
         noisy, clean = noisy.to(device), clean.to(device)
         optimizer.zero_grad()
         out = model(noisy)
+        # ── ensure target and output have same time-dim before loss ──
+        if clean.size(-1) != out.size(-1):
+            clean = clean[..., :out.size(-1)]
         loss = criterion(out, clean)
         loss.backward()
         optimizer.step()
         total_loss += loss.item() * noisy.size(0)
     return total_loss / len(loader.dataset)
 
+def compute_si_sdr(est: np.ndarray, ref: np.ndarray, eps=1e-8) -> float:
+    """
+    est, ref: 1D numpy arrays of equal length.
+    """
+    # zero-mean
+    est_zm = est - est.mean()
+    ref_zm = ref - ref.mean()
+    # projection
+    ref_energy = np.sum(ref_zm ** 2) + eps
+    proj = (np.sum(est_zm * ref_zm) / ref_energy) * ref_zm
+    noise = est_zm - proj
+    return 10 * np.log10((np.sum(proj ** 2) + eps) / (np.sum(noise ** 2) + eps))
 @torch.no_grad()
 def eval_epoch(model, loader, device):
     model.eval()
-    import speechmetrics  # pip install speechmetrics
-    meter = speechmetrics.load(['pesq', 'si_sdr'])
-    all_preds, all_refs = [], []
+    pesq_scores, si_sdr_scores = [], []
+    from pesq import pesq as pesq_eval, NoUtterancesError
+
     for noisy, clean in loader:
         noisy, clean = noisy.to(device), clean.to(device)
-        pred = model(noisy)
-        all_preds.append(pred.cpu())
-        all_refs.append(clean.cpu())
-    preds = torch.cat(all_preds, dim=0)   # (N,1,T)
-    refs  = torch.cat(all_refs,  dim=0)
-    # reshape to (N, T)
-    meter_results = meter(preds.squeeze(1), refs.squeeze(1), rate=16000)
-    return meter_resul
+        est = model(noisy)
 
+        refs =  clean.squeeze(1).cpu().numpy()  # (B, T_ref)
+        outs =  est .squeeze(1).cpu().numpy()  # (B, T_out)
 
+        for ref_np, out_np in zip(refs, outs):
+            # 1) align lengths
+            L = min(len(ref_np), len(out_np))
+            ref_np = ref_np[:L]
+            out_np = out_np[:L]
 
+            # 2) SI-SDR
+            si = compute_si_sdr(out_np, ref_np)
+            si_sdr_scores.append(si)
+
+            # 3) PESQ with fallback
+            try:
+                p = pesq_eval(16000, ref_np, out_np, 'wb')
+            except NoUtterancesError:
+                p = float('nan')
+            pesq_scores.append(p)
+
+    return {
+        'pesq': float(np.nanmean(pesq_scores)),
+        'si_sdr': float(np.mean(si_sdr_scores))
+    }
+
+# 3) DATASET: Windowed noisy dataset --------------------------------------
+class WindowedNoisyDataset(Dataset):
+    def __init__(self, clean_dir, noisy_dir,
+                 sample_rate=16000, window_len=16000, hop=None):
+        import glob, os
+        self.window_len = window_len
+        self.hop = hop or window_len  # non-overlapping by default
+        self.entries = []
+        clean_files = sorted(glob.glob(f"{clean_dir}/*.wav"))
+        for cpath in clean_files:
+            npath = os.path.join(noisy_dir, os.path.basename(cpath))
+            waveform, sr = torchaudio.load(cpath)
+            assert sr == sample_rate
+            total = waveform.size(1)
+            # slide a window through the file
+            for start in range(0, total, self.hop):
+                self.entries.append((cpath, npath, start))
+
+    def __len__(self):
+        return len(self.entries)
+
+    def __getitem__(self, idx):
+        cpath, npath, start = self.entries[idx]
+        clean, _ = torchaudio.load(cpath, frame_offset=start,
+                                   num_frames=self.window_len)
+        noisy, _ = torchaudio.load(npath, frame_offset=start,
+                                   num_frames=self.window_len)
+        # pad if file tail is shorter than window_len
+        L = clean.size(1)
+        if L < self.window_len:
+            pad = self.window_len - L
+            import torch.nn.functional as F
+            clean = F.pad(clean, (0, pad))
+            noisy = F.pad(noisy, (0, pad))
+        return noisy, clean
