@@ -486,7 +486,7 @@ if __name__ == "__main__":
     )
 
     # --- 3) Hyperparams & criteria -------------------------------------
-    num_epochs = 2
+    num_epochs = 3
     denoise_criterion = nn.SmoothL1Loss()
     sr_criterion      = nn.L1Loss()
 
@@ -527,14 +527,15 @@ if __name__ == "__main__":
         # 3) Training loop
         for epoch in range(start_epoch, num_epochs + 1):
             start = time.time()
-            loss = train_epoch(model, train_loader, optimizer, denoise_criterion, device)
+            loss, train_si_sdr = train_epoch(model, train_loader, optimizer, denoise_criterion, device)
             scheduler.step()
             elapsed = time.time() - start
-            print(f"[{prefix}] Epoch {epoch:3d} — loss={loss:.4f} — {elapsed:.1f}s")
+
+            print(f"[{prefix}] Epoch {epoch:3d} — loss={loss:.4f} — SI-SDR={train_si_sdr:.2f} dB — {elapsed:.1f}s")
 
 
             # 4) Periodic checkpoint
-            if epoch % 10 == 0 or epoch == num_epochs:
+            if epoch % 5 == 0 or epoch ==    num_epochs:
                 ckpt_path = os.path.join(ckpt_dir, f"{prefix}_e{epoch}.pth")
                 torch.save({
                     'model_state_dict':     model.state_dict(),

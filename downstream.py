@@ -214,18 +214,33 @@ def make_multi_noisy_loaders(clean_list: List[torch.Tensor],
 def train_epoch(model, loader, optimizer, criterion, device):
     model.train()
     total_loss = 0.0
+    total_si_sdr = 0.0
+    total_samples = 0
+
     for noisy, clean in loader:
         noisy, clean = noisy.to(device), clean.to(device)
         optimizer.zero_grad()
         out = model(noisy)
-        # ── ensure target and output have same time-dim before loss ──
-        if clean.size(-1) != out.size(-1):
-            clean = clean[..., :out.size(-1)]
         loss = criterion(out, clean)
         loss.backward()
         optimizer.step()
-        total_loss += loss.item() * noisy.size(0)
-    return total_loss / len(loader.dataset)
+
+        # accumulate loss
+        batch_size = noisy.size(0)
+        total_loss += loss.item() * batch_size
+
+        # compute SI-SDR per example
+        preds = out .detach().cpu().numpy().squeeze(1)  # (B, T)
+        refs  = clean.detach().cpu().numpy().squeeze(1)  # (B, T)
+        for pred_np, ref_np in zip(preds, refs):
+            # make sure same length
+            L = min(len(pred_np), len(ref_np))
+            total_si_sdr += compute_si_sdr(pred_np[:L], ref_np[:L])
+            total_samples += 1
+
+    avg_loss   = total_loss   / len(loader.dataset)
+    avg_si_sdr = total_si_sdr / total_samples
+    return avg_loss, avg_si_sdr
 
 def compute_si_sdr(est: np.ndarray, ref: np.ndarray, eps=1e-8) -> float:
     """
