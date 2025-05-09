@@ -153,42 +153,50 @@ class SSMLayerZOH(nn.Module):
         y = torch.stack(outputs, dim=-1)    # (B, out_ch, T)
         return y
 
-
-# --- Encoder / Decoder Block w/ Causal PreConv ----------------------------
 class EncoderBlock(nn.Module):
-    def __init__(self, in_ch, out_ch, resample, use_preconv=True, dt=1.0, state_dim=256):
+    def __init__(self,
+                 in_ch: int,
+                 out_ch: int,
+                 resample: int,
+                 use_preconv: bool = True,
+                 dt: float = 1.0,
+                 state_dim: int = 256):
         super().__init__()
         self.use_preconv = use_preconv and in_ch > 1
         if self.use_preconv:
             self.preconv = CausalPreConv(in_ch, kernel_size=3)
-            self.ssm      = SSMLayerFFTComplex(in_ch, out_ch,
-                                                    state_dim=state_dim,
-                                                    dt=dt)        
-            self.resample = Resample(out_ch, out_ch, factor=resample, mode='down')
+
+        # your SSM layer (with correct dt)
+        self.ssm      = SSMLayerFFTComplex(
+            in_ch, out_ch,
+            state_dim=state_dim,
+            dt=dt
+        )
+        # --- add these two back in! ---
         self.norm     = nn.LayerNorm(out_ch)
+        self.resample = Resample(out_ch, out_ch,
+                                 factor=resample,
+                                 mode='down')
+        # activation
         self.act      = nn.SiLU()
 
     def forward(self, x):
-            # x: (B, C, T)
-            if self.use_preconv:
-                x = self.preconv(x)
-            x = self.ssm(x)
+        if self.use_preconv:
+            x = self.preconv(x)
+        x = self.ssm(x)
 
-            # choose permutation based on norm type
-            if isinstance(self.norm, nn.BatchNorm1d):
-                # for BN1d we want (B, C, T)
-                x = self.norm(x)
-                x = self.act(x)
-            else:
-                # for LayerNorm we want (B, T, C)
-                x = x.permute(0, 2, 1)
-                x = self.norm(x)
-                x = self.act(x)
-                x = x.permute(0, 2, 1)
+        if isinstance(self.norm, nn.BatchNorm1d):
+            x = self.norm(x)
+            x = self.act(x)
+        else:
+            x = x.permute(0,2,1)
+            x = self.norm(x)
+            x = self.act(x)
+            x = x.permute(0,2,1)
 
-            x = self.resample(x)
-            return x
-
+        x = self.resample(x)
+        return x
+        
 class DecoderBlock(nn.Module):
     def __init__(self, in_ch, out_ch, resample, use_preconv=False, dt=1.0, state_dim=256):
         super().__init__()
@@ -294,7 +302,7 @@ class ATENNuate(nn.Module):
             (96, 128, 2, True),
             (128,256, 2, True),
         ]
-        dec_specs = [
+        self.dec_specs = [
             (256,128,2),
             (128, 96,2),
             (96, 64, 2),
@@ -305,10 +313,14 @@ class ATENNuate(nn.Module):
 
         # build layers
         self.encoders = nn.ModuleList([
-            EncoderBlock(ic, oc, r,
-                        use_preconv=use_pre,
-                        dt=self.dt,
-                        state_dim=256)
+            EncoderBlock(
+                in_ch=ic,
+                out_ch=oc,
+                resample=r,
+                use_preconv=use_pre,
+                dt=self.dt,
+                state_dim=256
+            )
             for ic, oc, r, use_pre in self.enc_specs
         ])
         self.neck = nn.Sequential(
@@ -316,10 +328,7 @@ class ATENNuate(nn.Module):
             EncoderBlock(256, 256, 1, use_preconv=False),
         )
         self.decoders = nn.ModuleList([
-            DecoderBlock(ic, oc, r,
-                        use_preconv=False,
-                        dt=self.dt,
-                        state_dim=256)
+            DecoderBlock(ic, oc, r)
             for ic, oc, r in self.dec_specs
         ])
 
@@ -385,7 +394,9 @@ class VariantATENNuate(ATENNuate):
                 in_ch=ic,
                 out_ch=oc,
                 resample=r,
-                use_preconv=use_preconv
+                use_preconv=use_preconv,
+                dt=self.dt,
+                state_dim=256
             )
             # adjust norm and activation
             block = self.encoders[idx]
