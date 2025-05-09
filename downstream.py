@@ -5,7 +5,7 @@ import torchaudio
 from typing import List, Dict, Tuple
 import glob
 import os
-from main import ATENNuate
+from aten_nuate import ATENNuate
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
 import torch.nn.functional as F
@@ -117,7 +117,7 @@ class MultiNoisyFileDataset(Dataset):
     """
     def __init__(self, clean_dir, noisy_dir,
                     factor: int, sample_rate: int = 16000,
-                    target_len: int = None):
+                    target_len: int = None, debug_crop=False):
         """
         clean_dir: directory with clean files like L_RA_F4_DK015_a0362.wav
         noisy_dir: directory with noisy like L_RA_F4_DK015_a0362_5db.wav, etc
@@ -127,6 +127,7 @@ class MultiNoisyFileDataset(Dataset):
         """
         self.sample_rate = sample_rate
         self.target_len  = target_len
+        self.debug_crop  = debug_crop
 
         # 1) map clean stems → full path
         clean_paths = sorted(glob.glob(os.path.join(clean_dir, '*.wav')))
@@ -184,6 +185,9 @@ class MultiNoisyFileDataset(Dataset):
             L = noisy.size(1)
             if L > T:
                 start = torch.randint(0, L - T + 1, (1,)).item()
+                if self.debug_crop:
+                    stem = os.path.splitext(os.path.basename(clean_path))[0]
+                    print(f"[DEBUG] {stem}: crop start={start}")
                 noisy = noisy[:, start:start+T]
                 clean = clean[:, start:start+T]
             elif L < T:
@@ -211,37 +215,48 @@ def make_multi_noisy_loaders(clean_list: List[torch.Tensor],
     return train_loader, val_loader
 # 2) TRAIN / EVAL LOOPS -----------------------------------------------------
 
+def batch_si_sdr(est: torch.Tensor, ref: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
+    """
+    Compute SI-SDR per example in a batch.
+    est, ref: (B, T) torch tensors on the same device.
+    Returns: (B,) SI-SDR in dB.
+    """
+    # zero-mean
+    est_zm = est - est.mean(dim=1, keepdim=True)
+    ref_zm = ref - ref.mean(dim=1, keepdim=True)
+    # projection of est onto ref
+    # α = (est_zm·ref_zm) / ||ref_zm||^2
+    alpha = torch.sum(est_zm * ref_zm, dim=1, keepdim=True) \
+            / (torch.sum(ref_zm.pow(2), dim=1, keepdim=True) + eps)
+    proj  = alpha * ref_zm
+    noise = est_zm - proj
+    # ratio of energies
+    si_sdr = 10 * torch.log10(
+        (torch.sum(proj.pow(2), dim=1) + eps)
+        / (torch.sum(noise.pow(2), dim=1) + eps)
+    )
+    return si_sdr  # shape (B,)
 def train_epoch(model, loader, optimizer, criterion, device):
     model.train()
     total_loss = 0.0
-    total_si_sdr = 0.0
-    total_samples = 0
+    total_examples = 0
 
     for noisy, clean in loader:
-        noisy, clean = noisy.to(device), clean.to(device)
+        noisy, clean = noisy.to(device), clean.to(device)  # (B,1,T)
         optimizer.zero_grad()
-        out = model(noisy)
+
+        out = model(noisy)                                 # (B,1,T)
         loss = criterion(out, clean)
         loss.backward()
         optimizer.step()
 
-        # accumulate loss
-        batch_size = noisy.size(0)
-        total_loss += loss.item() * batch_size
+        B = noisy.size(0)
+        total_loss += loss.item() * B
+        total_examples += B
 
-        # compute SI-SDR per example
-        preds = out .detach().cpu().numpy().squeeze(1)  # (B, T)
-        refs  = clean.detach().cpu().numpy().squeeze(1)  # (B, T)
-        for pred_np, ref_np in zip(preds, refs):
-            # make sure same length
-            L = min(len(pred_np), len(ref_np))
-            total_si_sdr += compute_si_sdr(pred_np[:L], ref_np[:L])
-            total_samples += 1
-
-    avg_loss   = total_loss   / len(loader.dataset)
-    avg_si_sdr = total_si_sdr / total_samples
-    return avg_loss, avg_si_sdr
-
+    avg_loss = total_loss / total_examples
+    return avg_loss
+    
 def compute_si_sdr(est: np.ndarray, ref: np.ndarray, eps=1e-8) -> float:
     """
     est, ref: 1D numpy arrays of equal length.
