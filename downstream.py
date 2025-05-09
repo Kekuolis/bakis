@@ -40,13 +40,22 @@ def profile_model(model: nn.Module, input_shape: tuple, sample_rate: int = 16000
 # --- Downstream tasks: super-resolution & de-quantization ----------------
 
 def mu_law_quantize(x: torch.Tensor, bits: int = 8) -> torch.Tensor:
-    """Mu-law companding and quantization."""
+    """Mu-law companding and quantization (device-safe)."""
+    # integer μ
     mu = 2**bits - 1
-    # mu-law encode
-    x_mu = torch.sign(x) * torch.log1p(mu * x.abs()) / torch.log1p(torch.tensor(mu, dtype=x.dtype))
-    # quantize
-    x_q = ((x_mu + 1) / 2 * mu + 0.5).floor() / mu * 2 - 1
+    # make μ into a tensor on the same device & dtype as x
+    mu_tensor = torch.tensor(mu, dtype=x.dtype, device=x.device)
+
+    # μ-law encode
+    #   x_mu = sign(x) * log1p(μ * |x|) / log1p(μ)
+    x_mu = torch.sign(x) * torch.log1p(mu_tensor * x.abs()) / torch.log1p(mu_tensor)
+
+    # quantize to [−1,1]
+    #   (x_mu+1)/2 ∈ [0,1]; scale by μ, floor, then map back
+    x_q = ((x_mu + 1) / 2 * mu_tensor + 0.5).floor() / mu_tensor * 2 - 1
+
     return x_q
+
 
 class SuperResolutionDataset(torch.utils.data.Dataset):
     """Dataset that simulates 4 kHz 4-bit μ-law inputs and provides 16 kHz targets,
@@ -173,8 +182,6 @@ class MultiNoisyFileDataset(Dataset):
         stem_noisy = os.path.basename(noisy_path).split('.')[0]
         stem_clean = os.path.basename(clean_path).split('.')[0]
         # print(f"Pairing: {stem_clean}  ←  {stem_noisy}")
-        noisy = self._load_and_resample(noisy_path)
-        clean = self._load_and_resample(clean_path)
         noisy_path, clean_path = self.pairs[idx]
         noisy = self._load_and_resample(noisy_path)
         clean = self._load_and_resample(clean_path)
@@ -206,7 +213,7 @@ def make_multi_noisy_loaders(clean_list: List[torch.Tensor],
     Returns train and val loaders for multi-noisy pairing.
     Splits 80/20 by default.
     """
-    ds = MultiNoisyDenoiseDataset(clean_list, noisy_list, factor)
+    ds = MultiNoisyFileDataset(clean_list, noisy_list, factor)
     n = len(ds)
     split = int(0.8 * n)
     train_ds, val_ds = torch.utils.data.random_split(ds, [split, n - split])

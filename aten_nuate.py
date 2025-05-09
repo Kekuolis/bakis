@@ -198,11 +198,17 @@ class EncoderBlock(nn.Module):
         return x
         
 class DecoderBlock(nn.Module):
-    def __init__(self, in_ch, out_ch, resample, use_preconv=False, dt=1.0, state_dim=256):
+    def __init__(self,
+                    in_ch: int,
+                    out_ch: int,
+                    resample: int,
+                    use_preconv: bool = False,
+                    dt: float = 1.0,
+                    state_dim: int = 256):
         super().__init__()
-        self.ssm      = SSMLayerZOH(in_ch, out_ch,
-                                     state_dim=state_dim,
-                                     dt=dt)
+        self.ssm = SSMLayerZOH(in_ch, out_ch,
+                                state_dim=state_dim,
+                                dt=dt)
         # **pass mode='up' here**
         self.resample = Resample(out_ch, out_ch, factor=resample, mode='up')
         self.norm     = nn.LayerNorm(out_ch)
@@ -292,7 +298,7 @@ class ATENNuate(nn.Module):
         super().__init__()
         # sample period (seconds per sample)
         self.dt = 1.0 / sample_rate
-
+        self.state_dim = 256
         # Encoder specs: (in→out, resample_factor, use_preconv)
         self.enc_specs = [
             (1,   16, 4, True),
@@ -313,22 +319,34 @@ class ATENNuate(nn.Module):
 
         # build layers
         self.encoders = nn.ModuleList([
-            EncoderBlock(
-                in_ch=ic,
-                out_ch=oc,
-                resample=r,
-                use_preconv=use_pre,
-                dt=self.dt,
-                state_dim=256
-            )
+            EncoderBlock(in_ch=ic,
+                         out_ch=oc,
+                         resample=r,
+                         use_preconv=use_pre,
+                         dt=self.dt,
+                         state_dim=self.state_dim)
             for ic, oc, r, use_pre in self.enc_specs
         ])
         self.neck = nn.Sequential(
-            EncoderBlock(256, 256, 1, use_preconv=False),
-            EncoderBlock(256, 256, 1, use_preconv=False),
+            EncoderBlock(in_ch=256,
+                         out_ch=256,
+                         resample=1,
+                         use_preconv=False,
+                         dt=self.dt,
+                         state_dim=self.state_dim),
+            EncoderBlock(in_ch=256,
+                         out_ch=256,
+                         resample=1,
+                         use_preconv=False,
+                         dt=self.dt,
+                         state_dim=self.state_dim),
         )
         self.decoders = nn.ModuleList([
-            DecoderBlock(ic, oc, r)
+            DecoderBlock(in_ch=ic,
+                         out_ch=oc,
+                         resample=r,
+                         dt=self.dt,
+                         state_dim=self.state_dim)
             for ic, oc, r in self.dec_specs
         ])
 
