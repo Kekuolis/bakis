@@ -8,7 +8,6 @@ from torch.utils.data import DataLoader
 from torch.utils.checkpoint import checkpoint
 import os
 import glob
-import speechmetrics
 import math
 from typing import List, Dict
 import time
@@ -75,7 +74,7 @@ for v in variants:
 # Example usage:
 
 # choose one
-mymodel = models['preconv_True_norm_layernorm_act_silu']
+mymodel = models['preconv_False_norm_layernorm_act_silu']
 
 # Path to your input and output files
 # /home/kek/Documents/bakis/deep_state/irasai/test/NOISY/R_RD_F3_BG040_a0148_5db.wav
