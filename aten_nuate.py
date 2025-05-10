@@ -2,6 +2,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchaudio
+
 
 # (Copy over c2d_zoh_complex, SSMLayerZOH, SSMLayerFFTComplex, PreConv,
 #  Resample, CausalPreConv, EncoderBlock, DecoderBlock, and ATENNuate here.)
@@ -359,6 +361,7 @@ class ATENNuate(nn.Module):
             nn.Conv1d( 32,  16, 1),  # enc1→dec4
             nn.Conv1d( 16,   1, 1),  # enc0→dec5 (optional—often you skip this last residual)
         ])
+        
 
     def forward(self, x):
         T0 = x.size(2)
@@ -370,14 +373,15 @@ class ATENNuate(nn.Module):
         for idx, dec in enumerate(self.decoders):
             x = dec(x)
             skip = skips.pop()
-            # align channels
             skip = self.skip_projs[idx](skip)
             if skip.size(2) != x.size(2):
                 x = F.pad(x, (0, skip.size(2) - x.size(2)))
             x = x + skip
-         # finally, if we’re not back to T0, upsample by nearest‐neighbor
+
+        # final upsampling via high-quality sinc filter
         if x.size(2) != T0:
-            x = F.interpolate(x, size=T0, mode='nearest')
+            x = self.resampler(x)
+
         return x
 
     def compute_latency(self):
@@ -406,6 +410,7 @@ class VariantATENNuate(ATENNuate):
                  activation: str = 'silu'     # 'silu' or 'relu'
                  ):
         super().__init__(sample_rate)
+        
         # override encoder blocks
         for idx, (ic, oc, r, _) in enumerate(self.enc_specs):
             self.encoders[idx] = EncoderBlock(
@@ -429,3 +434,8 @@ class VariantATENNuate(ATENNuate):
                 dec.norm = nn.BatchNorm1d(oc)
             if activation == 'relu':
                 dec.act = nn.ReLU()
+        self.resampler = torchaudio.transforms.Resample(
+            orig_freq=4_000,
+            new_freq=16_000,
+            lowpass_filter_width=512
+        )

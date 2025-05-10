@@ -78,7 +78,9 @@ for v in variants:
 mymodel = models['preconv_True_norm_layernorm_act_silu']
 
 # Path to your input and output files
-in_path  = './irasai/test/NOISY/R_RD_F3_BG040_a0148_5db.wav'
+# /home/kek/Documents/bakis/deep_state/irasai/test/NOISY/R_RD_F3_BG040_a0148_5db.wav
+# /home/kek/Documents/bakis/deep_state/irasai/test/NOISY/R_RD_F3_BG040_a0148_40db.wav
+in_path  = '/home/kek/Documents/bakis/deep_state/irasai/test/NOISY/R_RD_F3_BG040_a0148_5db.wav'
 out_path = './output_enhanced.wav'
 
 # Your model’s expected sample rate
