@@ -72,7 +72,7 @@ def evaluate_all_pairs(clean_dir, noisy_dir, denoised_base_dir, model_dirs, outp
 model_dirs = {
     "preconv_False_norm_batchnorm_act_relu",
     "preconv_True_norm_layernorm_act_silu",
-    "preconv_True_norm_batchnorm_act_relu",
+    "preconv_True_norm_batchnorm_act_relu", # remove this later
     "preconv_False_norm_layernorm_act_silu"
 }
 

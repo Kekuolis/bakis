@@ -26,7 +26,7 @@ def apply_models_to_directory(input_dir, output_base, ckpt_dir='checkpoints'):
     variants = [
         {'use_preconv': True,  'norm': 'layernorm', 'activation': 'silu'},
         {'use_preconv': False, 'norm': 'layernorm', 'activation': 'silu'},
-        {'use_preconv': True,  'norm': 'batchnorm', 'activation': 'relu'},
+        # {'use_preconv': True,  'norm': 'batchnorm', 'activation': 'relu'},
         {'use_preconv': False, 'norm': 'batchnorm', 'activation': 'relu'},
     ]
     model_sr = 16000

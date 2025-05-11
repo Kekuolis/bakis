@@ -42,7 +42,7 @@ def load_latest_checkpoint(model, optimizer, scheduler, prefix, ckpt_dir='checkp
 variants = [
     {'use_preconv': True,  'norm': 'layernorm', 'activation': 'silu'},
     {'use_preconv': False, 'norm': 'layernorm', 'activation': 'silu'},
-    {'use_preconv': True,  'norm': 'batchnorm', 'activation': 'relu'},
+    # {'use_preconv': True,  'norm': 'batchnorm', 'activation': 'relu'},
     {'use_preconv': False, 'norm': 'batchnorm', 'activation': 'relu'},
 ]
 

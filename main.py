@@ -17,8 +17,6 @@ from typing import List, Dict
 import time
 
 
-
-
 # 3) MAIN ENTRYPOINT --------------------------------------------------------
 
 def load_waveforms_from_dir(
@@ -103,7 +101,7 @@ if __name__ == "__main__":
     variants = [
         {'use_preconv': True,  'norm': 'layernorm', 'activation': 'silu'},
         {'use_preconv': False, 'norm': 'layernorm', 'activation': 'silu'},
-        {'use_preconv': True,  'norm': 'batchnorm', 'activation': 'relu'},
+        # {'use_preconv': True,  'norm': 'batchnorm', 'activation': 'relu'},
         {'use_preconv': False, 'norm': 'batchnorm', 'activation': 'relu'},
     ]
     results = {}
