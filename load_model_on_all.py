@@ -4,7 +4,8 @@ import torch
 import torchaudio
 import glob
 import re
-from aten_nuate import VariantATENNuate
+import gc
+from aten_nuate_lower_memory import VariantATENNuate
 
 # --- Helper: Load the latest checkpoint if available ---
 def load_latest_checkpoint_if_exists(model, prefix, ckpt_dir='checkpoints', device='cpu'):
@@ -27,11 +28,10 @@ def apply_models_to_directory(input_dir, output_base, ckpt_dir='checkpoints'):
         {'use_preconv': True,  'norm': 'layernorm', 'activation': 'silu'},
         {'use_preconv': False, 'norm': 'layernorm', 'activation': 'silu'},
         # {'use_preconv': True,  'norm': 'batchnorm', 'activation': 'relu'},
-        {'use_preconv': False, 'norm': 'batchnorm', 'activation': 'relu'},
+        {'use_preconv': False, 'norm': 'batchnorm', 'activation': 'relu'}, # change this since different sr
     ]
-    model_sr = 16000
+    model_sr = 64000
     wav_paths = glob.glob(os.path.join(input_dir, '*.wav'))
-
     for v in variants:
         prefix = f"preconv_{v['use_preconv']}_norm_{v['norm']}_act_{v['activation']}"
         print(f"\n🔍 Processing variant: {prefix}")
@@ -45,6 +45,7 @@ def apply_models_to_directory(input_dir, output_base, ckpt_dir='checkpoints'):
         for wav_path in wav_paths:
             filename = os.path.basename(wav_path)
             out_path = os.path.join(out_dir, filename)
+            os.makedirs(os.path.dirname(out_path), exist_ok=True)
             waveform, sr = torchaudio.load(wav_path)
             if waveform.size(0) > 1:
                 waveform = waveform.mean(dim=0, keepdim=True)
@@ -59,7 +60,7 @@ def apply_models_to_directory(input_dir, output_base, ckpt_dir='checkpoints'):
             print(f"✔️ Saved: {out_path}")
             
 apply_models_to_directory(
-    input_dir='/home/kek/Documents/bakis/deep_state/irasai/test/NOISY',
+    input_dir='./irasai/test/NOISY',
     output_base='./irasai/test/enhanced_outputs',
     ckpt_dir='checkpoints'
 )

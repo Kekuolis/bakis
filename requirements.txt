@@ -1,3 +1,4 @@
+
 absl-py==2.2.2
 astunparse==1.6.3
 attrs==25.3.0
@@ -67,7 +68,6 @@ opt_einsum==3.4.0
 optree==0.15.0
 packaging==25.0
 pandas==2.2.3
-pesq==0.0.5
 pillow==11.2.1
 platformdirs==4.3.8
 pooch==1.8.2
@@ -77,7 +77,6 @@ pyaml==25.1.0
 pycparser==2.22
 Pygments==2.19.1
 pyparsing==3.2.3
-pypesq==1.2.4
 pystoi==0.4.1
 python-dateutil==2.9.0.post0
 pytz==2025.2
