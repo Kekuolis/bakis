@@ -345,4 +345,4 @@ class WindowedNoisyDataset(Dataset):
             import torch.nn.functional as F
             clean = F.pad(clean, (0, pad))
             noisy = F.pad(noisy, (0, pad))
-        return noisy, clean
+        return noisy, clean(tinklas) 

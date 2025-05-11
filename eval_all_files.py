@@ -9,10 +9,10 @@ def evaluate_pesq(ref_path: str, deg_path: str, mode: str = 'wb') -> float:
     fs_ref, ref = wavfile.read(ref_path)
     fs_deg, deg = wavfile.read(deg_path)
 
-    # if fs_ref != fs_deg:
-    #     raise ValueError(f"Sample rates do not match: {fs_ref} vs {fs_deg}")
-    # if fs_ref not in [8000, 16000]:
-    #     raise ValueError("PESQ only supports 8000 or 16000 Hz")
+    if fs_ref != fs_deg:
+        raise ValueError(f"Sample rates do not match: {fs_ref} vs {fs_deg}")
+    if fs_ref not in [8000, 16000]:
+        raise ValueError("PESQ only supports 8000 or 16000 Hz")
 
     if ref.ndim > 1:
         ref = ref[:, 0]
@@ -70,7 +70,7 @@ def evaluate_all_pairs(clean_dir, noisy_dir, denoised_base_dir, model_dirs, outp
 
 # Define which models to run
 model_dirs = {
-    "preconv_False_norm_batchnorm_act_relu",
+    # "preconv_False_norm_batchnorm_act_relu",
     "preconv_True_norm_layernorm_act_silu",
     # "preconv_True_norm_batchnorm_act_relu", # remove this later
     "preconv_False_norm_layernorm_act_silu"
@@ -79,7 +79,7 @@ model_dirs = {
 evaluate_all_pairs(
     clean_dir="./irasai/test",
     noisy_dir="./irasai/test/NOISY",
-    denoised_base_dir="./irasai/test/enhanced_outputs",
+    denoised_base_dir="./irasai/test/enhanced_outputs_50_epochs_denoised_16000",
     model_dirs=model_dirs,
     output_json="pesq_results.json"
 )

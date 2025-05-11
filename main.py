@@ -102,7 +102,7 @@ if __name__ == "__main__":
         {'use_preconv': True,  'norm': 'layernorm', 'activation': 'silu'},
         {'use_preconv': False, 'norm': 'layernorm', 'activation': 'silu'},
         # {'use_preconv': True,  'norm': 'batchnorm', 'activation': 'relu'},
-        {'use_preconv': False, 'norm': 'batchnorm', 'activation': 'relu'},
+        # {'use_preconv': False, 'norm': 'batchnorm', 'activation': 'relu'},
     ]
     results = {}
 
@@ -144,7 +144,7 @@ if __name__ == "__main__":
 
 
             # 4) Periodic checkpoint
-            if epoch % 2 == 0 or epoch == num_epochs:
+            if epoch % 1 == 0 or epoch == num_epochs:
                 ckpt_path = os.path.join(ckpt_dir, f"{prefix}_e{epoch}.pth")
                 torch.save({
                     'model_state_dict':     model.state_dict(),

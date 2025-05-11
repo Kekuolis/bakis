@@ -6,6 +6,7 @@ import glob
 import re
 import gc
 from aten_nuate_lower_memory import VariantATENNuate
+# from aten_nuate import VariantATENNuate
 
 # --- Helper: Load the latest checkpoint if available ---
 def load_latest_checkpoint_if_exists(model, prefix, ckpt_dir='checkpoints', device='cpu'):
@@ -27,10 +28,10 @@ def apply_models_to_directory(input_dir, output_base, ckpt_dir='checkpoints'):
     variants = [
         {'use_preconv': True,  'norm': 'layernorm', 'activation': 'silu'},
         {'use_preconv': False, 'norm': 'layernorm', 'activation': 'silu'},
-        # {'use_preconv': True,  'norm': 'batchnorm', 'activation': 'relu'},
-        {'use_preconv': False, 'norm': 'batchnorm', 'activation': 'relu'}, # change this since different sr
+        # {'use_preconv': True,  'norm': 'batchnorm', 'activation': 'relu'},  # keep removed
+        {'use_preconv': False, 'norm': 'batchnorm', 'activation': 'relu'},
     ]
-    model_sr = 64000
+    model_sr = 16000
     wav_paths = glob.glob(os.path.join(input_dir, '*.wav'))
     for v in variants:
         prefix = f"preconv_{v['use_preconv']}_norm_{v['norm']}_act_{v['activation']}"
@@ -61,6 +62,6 @@ def apply_models_to_directory(input_dir, output_base, ckpt_dir='checkpoints'):
             
 apply_models_to_directory(
     input_dir='./irasai/test/NOISY',
-    output_base='./irasai/test/enhanced_outputs',
-    ckpt_dir='checkpoints'
+    output_base='./irasai/test/enhanced_outputs_50_epochs_denoised_16000',
+    ckpt_dir='checkpoints/16000_checkpoints'
 )

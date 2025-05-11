@@ -43,7 +43,7 @@ variants = [
     {'use_preconv': True,  'norm': 'layernorm', 'activation': 'silu'},
     {'use_preconv': False, 'norm': 'layernorm', 'activation': 'silu'},
     # {'use_preconv': True,  'norm': 'batchnorm', 'activation': 'relu'},
-    {'use_preconv': False, 'norm': 'batchnorm', 'activation': 'relu'},
+    # {'use_preconv': False, 'norm': 'batchnorm', 'activation': 'relu'},
 ]
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

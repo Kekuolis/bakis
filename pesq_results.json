@@ -1,26 +1,17 @@
 {
   "preconv_False_norm_batchnorm_act_relu": {},
-  "preconv_False_norm_layernorm_act_silu": {},
   "preconv_True_norm_layernorm_act_silu": {
     "R_RD_F3_BG040_a0148_30db.wav": {
       "clean_vs_noisy": 1.7609,
-      "clean_vs_denoised": 1.0231
-    },
-    "R_RD_F3_BG040_a0148_35db.wav": {
-      "clean_vs_noisy": 2.2645,
-      "clean_vs_denoised": 1.0191
+      "clean_vs_denoised": 1.0251
     },
     "R_RD_F3_BG040_a0148_40db.wav": {
       "clean_vs_noisy": 2.8812,
-      "clean_vs_denoised": 1.0265
+      "clean_vs_denoised": 1.046
     },
     "R_RD_F3_BG040_a0148_5db.wav": {
       "clean_vs_noisy": 1.0175,
-      "clean_vs_denoised": 1.025
-    },
-    "R_RD_F3_BG040_a0605_15db.wav": {
-      "clean_vs_noisy": 1.0782,
-      "clean_vs_denoised": 1.0221
+      "clean_vs_denoised": 1.0254
     },
     "R_RD_F3_BG040_a0605_5db.wav": {
       "clean_vs_noisy": 1.0219,
@@ -28,211 +19,104 @@
     },
     "R_RD_F3_BG040_a0733_10db.wav": {
       "clean_vs_noisy": 1.0381,
-      "clean_vs_denoised": 1.3624
-    },
-    "R_RD_F3_BG040_a0733_5db.wav": {
-      "clean_vs_noisy": 1.0215,
-      "clean_vs_denoised": 1.0201
-    },
-    "R_RD_F3_BG040_a0736_30db.wav": {
-      "clean_vs_noisy": 1.8755,
-      "clean_vs_denoised": 1.0225
+      "clean_vs_denoised": 1.0833
     },
     "R_RD_F3_BG040_a0864_10db.wav": {
       "clean_vs_noisy": 1.0298,
-      "clean_vs_denoised": 1.0181
-    },
-    "R_RD_F3_BG040_a0864_15db.wav": {
-      "clean_vs_noisy": 1.0667,
-      "clean_vs_denoised": 1.0229
+      "clean_vs_denoised": 1.0178
     },
     "R_RD_F3_BG040_a0864_30db.wav": {
       "clean_vs_noisy": 1.7487,
-      "clean_vs_denoised": 1.0163
-    },
-    "R_RD_F3_BG040_a0864_35db.wav": {
-      "clean_vs_noisy": 2.2507,
-      "clean_vs_denoised": 1.0165
-    },
-    "R_RD_F3_BG041_a0012_25db.wav": {
-      "clean_vs_noisy": 1.4512,
-      "clean_vs_denoised": 1.0487
+      "clean_vs_denoised": 1.0161
     },
     "R_RD_F3_BG041_a0167_20db.wav": {
       "clean_vs_noisy": 1.1674,
-      "clean_vs_denoised": 1.0177
-    },
-    "R_RD_F3_BG041_a0167_25db.wav": {
-      "clean_vs_noisy": 1.3695,
-      "clean_vs_denoised": 1.0191
+      "clean_vs_denoised": 1.0189
     },
     "R_RD_F3_BG041_a0167_35db.wav": {
       "clean_vs_noisy": 2.1984,
-      "clean_vs_denoised": 1.0197
+      "clean_vs_denoised": 1.0274
     },
     "R_RD_F3_BG041_a0206_40db.wav": {
       "clean_vs_noisy": 2.7288,
-      "clean_vs_denoised": 1.1524
+      "clean_vs_denoised": 1.1112
     },
     "R_RD_F3_BG041_a0206_5db.wav": {
       "clean_vs_noisy": 1.0204,
-      "clean_vs_denoised": 1.0421
+      "clean_vs_denoised": 1.0635
     },
     "R_RD_F3_BG041_a0665_30db.wav": {
       "clean_vs_noisy": 1.5501,
-      "clean_vs_denoised": 1.0335
+      "clean_vs_denoised": 1.0457
     },
     "R_RD_F3_BG041_a0665_40db.wav": {
       "clean_vs_noisy": 2.6163,
-      "clean_vs_denoised": 1.0203
-    },
-    "R_RD_F3_BG041_a0830_25db.wav": {
-      "clean_vs_noisy": 1.5066,
-      "clean_vs_denoised": 1.0269
+      "clean_vs_denoised": 1.0207
     },
     "R_RD_F3_BG041_a0830_35db.wav": {
       "clean_vs_noisy": 2.5158,
-      "clean_vs_denoised": 1.0258
-    },
-    "R_RD_F3_BG041_a0830_5db.wav": {
-      "clean_vs_noisy": 1.0227,
-      "clean_vs_denoised": 1.0503
-    },
-    "R_RD_F3_BG042_a0231_10db.wav": {
-      "clean_vs_noisy": 1.0232,
-      "clean_vs_denoised": 1.0941
+      "clean_vs_denoised": 1.0529
     },
     "R_RD_F3_BG042_a0231_20db.wav": {
       "clean_vs_noisy": 1.162,
-      "clean_vs_denoised": 1.0258
+      "clean_vs_denoised": 1.5096
     },
     "R_RD_F3_BG042_a0231_40db.wav": {
       "clean_vs_noisy": 2.8667,
-      "clean_vs_denoised": 1.0175
-    },
-    "R_RD_F3_BG042_a0231_5db.wav": {
-      "clean_vs_noisy": 1.0157,
-      "clean_vs_denoised": 1.0193
-    },
-    "R_RD_F3_BG042_a0351_30db.wav": {
-      "clean_vs_noisy": 1.7066,
-      "clean_vs_denoised": 1.0186
+      "clean_vs_denoised": 1.0304
     },
     "R_RD_F3_BG042_a0351_40db.wav": {
       "clean_vs_noisy": 2.7598,
       "clean_vs_denoised": 1.0188
     },
-    "R_RD_F3_BG042_a0351_5db.wav": {
-      "clean_vs_noisy": 1.0183,
-      "clean_vs_denoised": 1.0219
-    },
     "R_RD_F3_BG042_a0390_10db.wav": {
       "clean_vs_noisy": 1.047,
-      "clean_vs_denoised": 1.025
-    },
-    "R_RD_F3_BG042_a0390_5db.wav": {
-      "clean_vs_noisy": 1.0216,
-      "clean_vs_denoised": 1.0394
-    },
-    "R_RD_F3_BG042_a0819_30db.wav": {
-      "clean_vs_noisy": 1.7037,
-      "clean_vs_denoised": 1.1134
+      "clean_vs_denoised": 1.0205
     },
     "R_RD_F3_BG042_a0819_5db.wav": {
       "clean_vs_noisy": 1.0167,
-      "clean_vs_denoised": 1.0236
-    },
-    "R_RD_F3_BG044_a0083_25db.wav": {
-      "clean_vs_noisy": 1.6505,
-      "clean_vs_denoised": 1.0173
-    },
-    "R_RD_F3_BG044_a0083_30db.wav": {
-      "clean_vs_noisy": 2.0774,
-      "clean_vs_denoised": 1.017
-    },
-    "R_RD_F3_BG044_a0083_40db.wav": {
-      "clean_vs_noisy": 3.2632,
-      "clean_vs_denoised": 1.0176
-    },
-    "R_RD_F3_BG044_a0191_10db.wav": {
-      "clean_vs_noisy": 1.0946,
-      "clean_vs_denoised": 1.0427
+      "clean_vs_denoised": 1.0397
     },
     "R_RD_F3_BG044_a0191_20db.wav": {
       "clean_vs_noisy": 1.3587,
-      "clean_vs_denoised": 1.5024
+      "clean_vs_denoised": 1.4472
     },
     "R_RD_F3_BG044_a0191_25db.wav": {
       "clean_vs_noisy": 1.7213,
-      "clean_vs_denoised": 1.2369
-    },
-    "R_RD_F3_BG044_a0244_10db.wav": {
-      "clean_vs_noisy": 1.1514,
-      "clean_vs_denoised": 1.0375
+      "clean_vs_denoised": 1.7218
     },
     "R_RD_F3_BG044_a0244_15db.wav": {
       "clean_vs_noisy": 1.3282,
-      "clean_vs_denoised": 1.0274
-    },
-    "R_RD_F3_BG044_a0244_25db.wav": {
-      "clean_vs_noisy": 2.0762,
-      "clean_vs_denoised": 1.0247
-    },
-    "R_RD_F3_BG044_a0244_30db.wav": {
-      "clean_vs_noisy": 2.6843,
-      "clean_vs_denoised": 1.0252
-    },
-    "R_RD_F3_BG044_a0244_5db.wav": {
-      "clean_vs_noisy": 1.065,
-      "clean_vs_denoised": 1.0329
+      "clean_vs_denoised": 1.026
     },
     "R_RD_F3_BG044_a0280_15db.wav": {
       "clean_vs_noisy": 1.2027,
-      "clean_vs_denoised": 1.0382
-    },
-    "R_RD_F3_BG044_a0280_20db.wav": {
-      "clean_vs_noisy": 1.4336,
-      "clean_vs_denoised": 1.0263
+      "clean_vs_denoised": 1.0302
     },
     "R_RD_F3_BG044_a0280_40db.wav": {
       "clean_vs_noisy": 3.5999,
-      "clean_vs_denoised": 1.0295
+      "clean_vs_denoised": 1.0293
     },
     "R_RD_F3_BG044_a0280_5db.wav": {
       "clean_vs_noisy": 1.0401,
-      "clean_vs_denoised": 1.0333
+      "clean_vs_denoised": 1.0323
     },
     "R_RD_F3_BG044_a0513_10db.wav": {
       "clean_vs_noisy": 1.0407,
-      "clean_vs_denoised": 1.0264
+      "clean_vs_denoised": 1.0276
     },
     "R_RD_F3_BG044_a0513_35db.wav": {
       "clean_vs_noisy": 2.6302,
-      "clean_vs_denoised": 1.0304
+      "clean_vs_denoised": 1.0338
     },
     "R_RD_F3_BG044_a0513_40db.wav": {
       "clean_vs_noisy": 3.3114,
-      "clean_vs_denoised": 1.0224
+      "clean_vs_denoised": 1.0215
     },
     "R_RD_F3_BG046_a0061_10db.wav": {
       "clean_vs_noisy": 1.0278,
-      "clean_vs_denoised": 1.0252
-    },
-    "R_RD_F3_BG046_a0061_25db.wav": {
-      "clean_vs_noisy": 1.3686,
-      "clean_vs_denoised": 1.0393
-    },
-    "R_RD_F3_BG046_a0061_30db.wav": {
-      "clean_vs_noisy": 1.6903,
-      "clean_vs_denoised": 1.0346
-    },
-    "R_RD_F3_BG046_a0061_35db.wav": {
-      "clean_vs_noisy": 2.1511,
-      "clean_vs_denoised": 1.0284
-    },
-    "R_RD_F3_BG046_a0061_5db.wav": {
-      "clean_vs_noisy": 1.0175,
-      "clean_vs_denoised": 1.0231
+      "clean_vs_denoised": 1.0253
     }
-  }
+  },
+  "preconv_False_norm_layernorm_act_silu": {}
 }
