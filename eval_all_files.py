@@ -9,11 +9,7 @@ def evaluate_pesq(ref_path: str, deg_path: str, mode: str = 'wb') -> float:
     fs_ref, ref = wavfile.read(ref_path)
     fs_deg, deg = wavfile.read(deg_path)
 
-    if fs_ref != fs_deg:
-        raise ValueError(f"Sample rates do not match: {fs_ref} vs {fs_deg}")
-    if fs_ref not in [8000, 16000]:
-        raise ValueError("PESQ only supports 8000 or 16000 Hz")
-
+    # Ensure mono
     if ref.ndim > 1:
         ref = ref[:, 0]
     if deg.ndim > 1:
@@ -30,6 +26,7 @@ def evaluate_pesq(ref_path: str, deg_path: str, mode: str = 'wb') -> float:
         deg = np.clip(deg, -1.0, 1.0)
         deg = (deg * 32767).astype(np.int16)
 
+    # Compute PESQ score
     return pesq(fs_ref, ref, deg, mode)
 
 
@@ -44,7 +41,6 @@ def evaluate_all_pairs(clean_dir, noisy_dir, denoised_base_dir, model_dirs, outp
         denoised_files = sorted(glob(os.path.join(model_dir, '*.wav')))
         for den_file in denoised_files:
             fname = os.path.basename(den_file)
-            # remove SNR suffix to find clean file
             utt_id = fname.rsplit('_', 1)[0]
             clean_path = os.path.join(clean_dir, utt_id + '.wav')
             noisy_path = os.path.join(noisy_dir, fname)
@@ -63,23 +59,25 @@ def evaluate_all_pairs(clean_dir, noisy_dir, denoised_base_dir, model_dirs, outp
             except Exception as e:
                 print(f"❌ Error evaluating {fname} in {model_name}: {e}")
 
+    # Save results to JSON
     with open(output_json, 'w') as f:
         json.dump(results, f, indent=2)
     print(f"✅ PESQ evaluation saved to {output_json}")
 
 
-# Define which models to run
-model_dirs = {
-    # "preconv_False_norm_batchnorm_act_relu",
-    "preconv_True_norm_layernorm_act_silu",
-    # "preconv_True_norm_batchnorm_act_relu", # remove this later
-    "preconv_False_norm_layernorm_act_silu"
-}
+if __name__ == "__main__":
+    # Define which models to run
+    model_dirs = [
+        # "preconv_True_norm_layernorm_act_relu",
+        # "preconv_False_norm_layernorm_act_relu",
+        "preconv_True_norm_layernorm_act_silu",
+        "preconv_False_norm_layernorm_act_silu"
+    ]
 
-evaluate_all_pairs(
-    clean_dir="./irasai/test",
-    noisy_dir="./irasai/test/NOISY",
-    denoised_base_dir="./irasai/test/enhanced_outputs_50_epochs_denoised_16000",
-    model_dirs=model_dirs,
-    output_json="pesq_results.json"
-)
+    evaluate_all_pairs(
+        clean_dir="./irasai/test",
+        noisy_dir="./irasai/test/NOISY",
+        denoised_base_dir="./irasai/test/enhanced_outputs_20_epoch_denoised_64000",
+        model_dirs=model_dirs,
+        output_json="pesq_results_20_epoch_64000.json"
+    )

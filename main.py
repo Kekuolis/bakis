@@ -64,8 +64,8 @@ if __name__ == "__main__":
         noisy_dir='./irasai/train/noisy',
         factor=8,
         sample_rate=SAMPLE_RATE,
-        target_len=64000,
-        debug_crop=False   # 4-second chunks
+        target_len=64000, # 4-second chunks
+        debug_crop=False  
     )
     ds_len = len(full_ds)
     train_len = int(0.8 * ds_len)

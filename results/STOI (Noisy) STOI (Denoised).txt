@@ -1,0 +1,21 @@
+                                               STOI (Noisy)  STOI (Denoised)
+Model                                SNR (dB)                               
+preconv_True_norm_layernorm_act_silu 5               0.7632           0.7623
+                                     10              0.8316           0.8312
+                                     15              0.9020           0.9014
+                                     20              0.9470           0.9464
+                                     25              0.9630           0.9626
+                                     30              0.9823           0.9818
+                                     35              0.9951           0.9944
+                                     40              0.9982           0.9975
+(real_time_) kek@kek:~/Documents/bakis/deep_state$ python3 ./results_stoi.py 
+                                               STOI (Noisy)  STOI (Denoised)
+Model                                SNR (dB)                               
+preconv_True_norm_layernorm_act_silu 5               0.7632           0.7623
+                                     10              0.8316           0.8312
+                                     15              0.9020           0.9014
+                                     20              0.9470           0.9464
+                                     25              0.9630           0.9626
+                                     30              0.9823           0.9818
+                                     35              0.9951           0.9944
+                                     40              0.9982           0.9975
