@@ -12,7 +12,7 @@ def load_latest_checkpoint_if_exists(model, prefix, ckpt_dir='checkpoints', devi
     pattern = os.path.join(ckpt_dir, f"{prefix}_e*.pth")
     files = glob.glob(pattern)
     if not files:
-        print(f"⚠️ Skipping {prefix}: no checkpoint found.")
+        print(f"⚠ Skipping {prefix}: no checkpoint found.")
         return False
     def epoch_of(path): return int(re.search(r"_e(\d+)\.pth$", path).group(1))
     latest = max(files, key=epoch_of)
@@ -70,10 +70,10 @@ def apply_models_to_directory(input_dir, output_base, ckpt_dir='checkpoints', ba
                 stem, ext = os.path.splitext(filename)
                 match = re.search(r"_(\d{1,2}db)$", stem)
                 db_suffix = match.group(1) if match else "unknown"
-                new_filename = f"{stem}_{db_suffix}{ext}"
+                new_filename = f"{stem}{ext}"
                 out_path = os.path.join(out_dir, new_filename)
                 if os.path.exists(out_path):
-                    print(f"⚠️ Skipping existing: {new_filename}")
+                    print(f"⚠ Skipping existing: {new_filename}")
                     continue
                 batch_info.append((p, out_path))
 
@@ -134,13 +134,13 @@ def apply_models_to_directory(input_dir, output_base, ckpt_dir='checkpoints', ba
                 new_filename = f"{stem}{ext}"  # You could remove double "_5db_5db" if desired
                 out_path = os.path.join(out_dir, new_filename)
                 if os.path.exists(out_path):
-                    print(f"⚠️ Skipping existing: {filename}")
+                    print(f"⚠ Skipping existing: {filename}")
                     continue
                 # trim to original length
                 out_wav = enhanced[idx, :lengths[idx]]
                 out_wav = torch.clamp(out_wav, -1.0, 1.0)
                 torchaudio.save(out_path, out_wav.unsqueeze(0), model_sr)
-                print(f"✔️ Saved: {out_path}")
+                print(f"✔ Saved: {out_path}")
 
             # free memory
             del batch_tensor, enhanced, waveforms
