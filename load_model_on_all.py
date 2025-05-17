@@ -117,7 +117,7 @@ def apply_models_to_directory(input_dir, output_base, ckpt_dir='checkpoints', ba
             gc.collect()
  
 apply_models_to_directory(
-    input_dir='./irasai/NOISY',
-    output_base='./irasai/test/enhanced_outputs_20_epochs_denoised_64000',
-    ckpt_dir='./checkpoints/true_check_points/'
+    input_dir='./irasai/test',
+    output_base='./irasai/test/enhanced_outputs_50_epochs_denoised_16000',
+    ckpt_dir='./checkpoints/16000_checkpoints'
 )

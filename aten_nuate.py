@@ -101,9 +101,6 @@ class SSMLayerFFTComplex(nn.Module):
         # next power-of-two >= L_val
         nfft = 1 << (L_val - 1).bit_length()
 
-        # Option B: use math to next power of two
-        # nfft = 2 ** math.ceil(math.log2(L))
-
         U = torch.fft.rfft(u,   nfft)
         H = torch.fft.rfft(h,   nfft)
         Yf = torch.einsum('bif,oif->bof', U, H)
@@ -115,7 +112,7 @@ class SSMLayerFFTComplex(nn.Module):
             for ti in range(T):
                 # cast this slice to complex so matmul matches B_d.dtype
                 u_t = u[..., ti].to(B_d.dtype)           # now complex64
-                s = A_d_diag.unsqueeze(0) * s  + u_t @ B_d # complex × complex  complex @ complex
+                s = A_d_diag.unsqueeze(0) * s + u_t @ B_d # complex × complex  complex @ complex
                 outs.append((s @ C_full).real)          # real part only
             y = torch.stack(outs, dim=-1)
 
@@ -380,7 +377,7 @@ class ATENNuate(nn.Module):
 
         # final upsampling via high-quality sinc filter
         if x.size(2) != T0:
-            x = self.resampler(x)
+            x = F.interpolate(x, size=T0, mode='linear', align_corners=True)
 
         return x
 

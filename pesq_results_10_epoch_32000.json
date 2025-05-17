@@ -1,0 +1,4 @@
+{
+  "preconv_True_norm_layernorm_act_silu": {},
+  "preconv_False_norm_layernorm_act_silu": {}
+}

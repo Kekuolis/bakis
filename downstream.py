@@ -204,22 +204,6 @@ class MultiNoisyFileDataset(Dataset):
 
         return noisy, clean
 
-def make_multi_noisy_loaders(clean_list: List[torch.Tensor],
-                             noisy_list: List[torch.Tensor],
-                             factor: int = 6,
-                             batch_size: int = 16,
-                             shuffle_train: bool = True):
-    """
-    Returns train and val loaders for multi-noisy pairing.
-    Splits 80/20 by default.
-    """
-    ds = MultiNoisyFileDataset(clean_list, noisy_list, factor)
-    n = len(ds)
-    split = int(0.8 * n)
-    train_ds, val_ds = torch.utils.data.random_split(ds, [split, n - split])
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=shuffle_train)
-    val_loader   = DataLoader(val_ds,   batch_size=batch_size, shuffle=False)
-    return train_loader, val_loader
 # 2) TRAIN / EVAL LOOPS -----------------------------------------------------
 
 def batch_si_sdr(est: torch.Tensor, ref: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:

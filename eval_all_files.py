@@ -77,7 +77,7 @@ if __name__ == "__main__":
     evaluate_all_pairs(
         clean_dir="./irasai/test",
         noisy_dir="./irasai/test/NOISY",
-        denoised_base_dir="./irasai/test/enhanced_outputs_20_epoch_denoised_64000",
+        denoised_base_dir="/home/kek/Documents/bakis/deep_state/irasai/test/enhanced_outputs_10_epoch_denoised_32000_testing_old",
         model_dirs=model_dirs,
-        output_json="pesq_results_20_epoch_64000.json"
+        output_json="pesq_results_10_epoch_32000_testing_old.json"
     )

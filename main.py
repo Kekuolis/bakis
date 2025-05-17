@@ -64,7 +64,7 @@ if __name__ == "__main__":
         noisy_dir='./irasai/train/noisy',
         factor=8,
         sample_rate=SAMPLE_RATE,
-        target_len=64000, # 4-second chunks
+        target_len=32000, # 4-second chunks
         debug_crop=False  
     )
     ds_len = len(full_ds)
@@ -79,7 +79,7 @@ if __name__ == "__main__":
     sr_full_ds = SuperResolutionDataset(
         clean_sr,
         sample_rate=SAMPLE_RATE,
-        target_len=64000  # same 4-sec window
+        target_len=16000  # same 4-sec window
     )
     sr_train_ds, sr_val_ds = torch.utils.data.random_split(
         sr_full_ds,
