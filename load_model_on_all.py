@@ -30,7 +30,7 @@ def apply_models_to_directory(input_dir, output_base, ckpt_dir='checkpoints', ba
         {'use_preconv': False, 'norm': 'layernorm', 'activation': 'silu'},
         # {'use_preconv': Fal   se, 'norm': 'batchnorm', 'activation': 'relu'},
     ]
-    model_sr = 64000
+    model_sr = 16000
     wav_paths = sorted(glob.glob(os.path.join(input_dir, '*.wav')))
     # before your for-v in variants loop
 
@@ -62,6 +62,27 @@ def apply_models_to_directory(input_dir, output_base, ckpt_dir='checkpoints', ba
         # process only pending files, in batches
         for i in range(0, len(wav_paths_pending), batch_size):
             batch_paths = wav_paths_pending[i : i + batch_size]
+            
+            # Determine output paths and filter out existing ones
+            batch_info = []
+            for p in batch_paths:
+                filename = os.path.basename(p)
+                stem, ext = os.path.splitext(filename)
+                match = re.search(r"_(\d{1,2}db)$", stem)
+                db_suffix = match.group(1) if match else "unknown"
+                new_filename = f"{stem}_{db_suffix}{ext}"
+                out_path = os.path.join(out_dir, new_filename)
+                if os.path.exists(out_path):
+                    print(f"⚠️ Skipping existing: {new_filename}")
+                    continue
+                batch_info.append((p, out_path))
+
+            if not batch_info:
+                continue  # skip if nothing to process
+
+            # proceed only with files not already saved
+            batch_paths, out_paths = zip(*batch_info)
+
 
             waveforms = []
             lengths = []
@@ -101,7 +122,17 @@ def apply_models_to_directory(input_dir, output_base, ckpt_dir='checkpoints', ba
             # save each file and cleanup
             for idx, p in enumerate(batch_paths):
                 filename = os.path.basename(p)
-                out_path = os.path.join(out_dir, filename)
+
+                # More reliable dB extraction using lookahead for ".wav"
+                db_match = re.search(r'_(\d+db)(?=\.wav$)', filename)
+                db_suffix = db_match.group(1) if db_match else "unknown"
+
+                stem, ext = os.path.splitext(filename)
+                new_filename = f"{stem}{ext}"  # Modify this as needed
+
+                # Add the variant name into the filename if needed
+                new_filename = f"{stem}_{db_suffix}{ext}"  # You could remove double "_5db_5db" if desired
+                out_path = os.path.join(out_dir, new_filename)
                 if os.path.exists(out_path):
                     print(f"⚠️ Skipping existing: {filename}")
                     continue
@@ -117,7 +148,7 @@ def apply_models_to_directory(input_dir, output_base, ckpt_dir='checkpoints', ba
             gc.collect()
  
 apply_models_to_directory(
-    input_dir='./irasai/test',
-    output_base='./irasai/test/enhanced_outputs_50_epochs_denoised_16000',
-    ckpt_dir='./checkpoints/16000_checkpoints'
+    input_dir='./irasai/train/noisy',
+    output_base='./irasai/test/enhanced_outputs_20_epochs_denoised_16000',
+    ckpt_dir='./checkpoints'
 )

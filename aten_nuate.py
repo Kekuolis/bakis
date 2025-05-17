@@ -358,6 +358,7 @@ class ATENNuate(nn.Module):
             nn.Conv1d( 32,  16, 1),  # enc1→dec4
             nn.Conv1d( 16,   1, 1),  # enc0→dec5 (optional—often you skip this last residual)
         ])
+        self.final_upsample = Resample(1, 1, factor=2, mode='up')
         
 
     def forward(self, x):
@@ -375,9 +376,13 @@ class ATENNuate(nn.Module):
                 x = F.pad(x, (0, skip.size(2) - x.size(2)))
             x = x + skip
 
-        # final upsampling via high-quality sinc filter
-        if x.size(2) != T0:
-            x = F.interpolate(x, size=T0, mode='linear', align_corners=True)
+        # use paper version
+        while x.size(2) < T0:
+            x = self.final_upsample(x)
+
+        if x.size(2) > T0:
+            x = x[:, :, :T0]
+
 
         return x
 
