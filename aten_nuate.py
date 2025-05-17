@@ -358,16 +358,22 @@ class ATENNuate(nn.Module):
             nn.Conv1d( 32,  16, 1),  # enc1→dec4
             nn.Conv1d( 16,   1, 1),  # enc0→dec5 (optional—often you skip this last residual)
         ])
-        self.final_upsample = Resample(1, 1, factor=2, mode='up')
+        self.final_upsamplers = nn.ModuleDict()
         
 
     def forward(self, x):
-        T0 = x.size(2)
+        T0 = x.size(2)  # Original input length
         skips = []
+
+        # Encoder path
         for enc in self.encoders:
             x = enc(x)
             skips.append(x)
+
+        # Neck (bottleneck)
         x = self.neck(x)
+
+        # Decoder path
         for idx, dec in enumerate(self.decoders):
             x = dec(x)
             skip = skips.pop()
@@ -376,15 +382,12 @@ class ATENNuate(nn.Module):
                 x = F.pad(x, (0, skip.size(2) - x.size(2)))
             x = x + skip
 
-        # use paper version
-        while x.size(2) < T0:
-            x = self.final_upsample(x)
-
-        if x.size(2) > T0:
-            x = x[:, :, :T0]
-
+        # Explicit high-quality resampling to EXACT input length T0
+        if x.size(2) != T0:
+            x = torchaudio.functional.resample(x, orig_freq=x.size(2), new_freq=T0)
 
         return x
+
 
     def compute_latency(self):
         """
