@@ -228,55 +228,24 @@ def batch_si_sdr(est: torch.Tensor, ref: torch.Tensor, eps: float = 1e-8) -> tor
     )
     return si_sdr  # shape (B,)
 
-def penalizing_loss(output, target, l1_weight=1.0, energy_weight=0.01, sdr_weight=0.0):
-    """
-    Penalizes low-volume outputs by combining:
-    - L1 loss (reconstruction)
-    - Energy loss: encourages output RMS to match target RMS
-    - Optional: negative SI-SDR for perceptual quality
-    """
-    # Basic L1 loss
-    l1 = F.l1_loss(output, target)
 
-    # Energy (RMS) match penalty
-    def rms(x): return torch.sqrt(torch.mean(x**2, dim=[1,2]) + 1e-8)  # (B,)
-    rms_out = rms(output)
-    rms_tgt = rms(target)
-    energy_loss = F.l1_loss(rms_out, rms_tgt)
-
-    # Optional SI-SDR reward (maximization, so we subtract it)
-    si_sdr_loss = 0
-    if sdr_weight > 0:
-        si_sdr_vals = batch_si_sdr(output.squeeze(1), target.squeeze(1))  # (B,)
-        si_sdr_loss = -si_sdr_vals.mean()  # higher is better, so we negate
-
-    return l1_weight * l1 + energy_weight * energy_loss + sdr_weight * si_sdr_loss
-def train_epoch(model, loader, optimizer, device):
+def train_epoch(model, loader, optimizer, criterion, device):
     model.train()
-    total_loss = 0.0
-    total_examples = 0
+    total_loss, total_examples = 0.0, 0
 
     for noisy, clean in loader:
-        noisy, clean = noisy.to(device), clean.to(device)  # (B,1,T)
+        noisy, clean = noisy.to(device), clean.to(device)
         optimizer.zero_grad()
 
-        out = model(noisy)  # (B,1,T)
-
-        # Use custom loss
-        loss = penalizing_loss(out, clean,
-                               l1_weight=1.0,
-                               energy_weight=0.01,
-                               sdr_weight=0.0)  # Try 0.05 for sdr_weight if wanted
+        out = model(noisy)
+        loss = criterion(out, clean)  # e.g. criterion = nn.L1Loss() or nn.SmoothL1Loss()
         loss.backward()
         optimizer.step()
 
-        B = noisy.size(0)
-        total_loss += loss.item() * B
-        total_examples += B
+        total_loss += loss.item() * noisy.size(0)
+        total_examples += noisy.size(0)
 
-    avg_loss = total_loss / total_examples
-    return avg_loss
-
+    return total_loss / total_examples
 def compute_si_sdr(est: np.ndarray, ref: np.ndarray, eps=1e-8) -> float:
     """
     est, ref: 1D numpy arrays of equal length.

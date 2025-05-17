@@ -131,7 +131,7 @@ def apply_models_to_directory(input_dir, output_base, ckpt_dir='checkpoints', ba
                 new_filename = f"{stem}{ext}"  # Modify this as needed
 
                 # Add the variant name into the filename if needed
-                new_filename = f"{stem}_{db_suffix}{ext}"  # You could remove double "_5db_5db" if desired
+                new_filename = f"{stem}{ext}"  # You could remove double "_5db_5db" if desired
                 out_path = os.path.join(out_dir, new_filename)
                 if os.path.exists(out_path):
                     print(f"⚠️ Skipping existing: {filename}")

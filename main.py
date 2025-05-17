@@ -134,8 +134,7 @@ if __name__ == "__main__":
         # 3) Training loop
         for epoch in range(start_epoch, num_epochs + 1):
             start = time.time()
-            loss = train_epoch(model, train_loader, optimizer,
-                   device)
+            loss = train_epoch(model, train_loader, optimizer, denoise_criterion, device)
                    
             scheduler.step()
             elapsed = time.time() - start
