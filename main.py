@@ -11,7 +11,7 @@ import os
 import pprint
 import glob
 from downstream import *
-from aten_nuate import VariantATENNuate
+from aten_nuate import VariantATENNuate, ResidualDenoiser
 import math
 from typing import List, Dict
 import time
@@ -112,7 +112,7 @@ if __name__ == "__main__":
         os.makedirs(ckpt_dir, exist_ok=True)
 
         # 1) Instantiate fresh model / optimizer / scheduler
-        model     = VariantATENNuate(**v).to(device)
+        model     = ResidualDenoiser(VariantATENNuate(**v).to(device))
         optimizer = torch.optim.AdamW(model.parameters(), lr=5e-3, weight_decay=0.02)
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs)
 

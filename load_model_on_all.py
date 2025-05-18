@@ -6,7 +6,7 @@ import glob
 import re
 import gc
 #from aten_nuate_lower_memory import VariantATENNuate
-from aten_nuate import VariantATENNuate
+from aten_nuate import VariantATENNuate, ResidualDenoiser
 
 def load_latest_checkpoint_if_exists(model, prefix, ckpt_dir='checkpoints', device='cpu'):
     pattern = os.path.join(ckpt_dir, f"{prefix}_e*.pth")
@@ -51,7 +51,7 @@ def apply_models_to_directory(input_dir, output_base, ckpt_dir='checkpoints', ba
         if not wav_paths_pending:
             continue
 
-        model = VariantATENNuate(**v).to(device)
+        model = ResidualDenoiser(VariantATENNuate(**v).to(device))
         if not load_latest_checkpoint_if_exists(model, prefix, ckpt_dir, device):
             continue
         model.eval()

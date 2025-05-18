@@ -37,6 +37,10 @@ def evaluate_all_pairs(clean_dir, noisy_dir, denoised_base_dir, model_dirs, outp
         print(f"🔍 Evaluating model: {model_name}")
         model_dir = os.path.join(denoised_base_dir, model_name)
         results[model_name] = {}
+        print(f"🔍 Evaluating model: {model_name}")
+        print(f"[DEBUG] model_dir exists? {os.path.isdir(model_dir)}")
+        denoised_files = sorted(glob(os.path.join(model_dir, '*.wav')))
+        print(f"[DEBUG] found {len(denoised_files)} .wav files in {model_dir!r}")
 
         denoised_files = sorted(glob(os.path.join(model_dir, '*.wav')))
         for den_file in denoised_files:
@@ -44,9 +48,11 @@ def evaluate_all_pairs(clean_dir, noisy_dir, denoised_base_dir, model_dirs, outp
             utt_id = fname.rsplit('_', 1)[0]
             clean_path = os.path.join(clean_dir, utt_id + '.wav')
             noisy_path = os.path.join(noisy_dir, fname)
-
-            if not os.path.exists(clean_path) or not os.path.exists(noisy_path):
-                print(f"⚠️ Skipping {fname}: clean or noisy version not found.")
+            if not os.path.exists(clean_path):
+                print(f"⚠️ Missing clean file for {fname}: expected {clean_path}")
+                continue
+            if not os.path.exists(noisy_path):
+                print(f"⚠️ Missing noisy file for {fname}: expected {noisy_path}")
                 continue
 
             try:
@@ -71,13 +77,13 @@ if __name__ == "__main__":
         # "preconv_True_norm_layernorm_act_relu",
         # "preconv_False_norm_layernorm_act_relu",
         "preconv_True_norm_layernorm_act_silu",
-        "preconv_False_norm_layernorm_act_silu"
+        "preconv_False_norm_layernorm_act_silu",
     ]
 
     evaluate_all_pairs(
         clean_dir="./irasai/test",
         noisy_dir="./irasai/test/NOISY",
-        denoised_base_dir="/home/kek/Documents/bakis/deep_state/irasai/test/enhanced_outputs_10_epoch_denoised_32000_testing_old",
+        denoised_base_dir="/home/kek/Documents/bakis/deep_state/irasai/test/enhanced_outputs_30_epoch_denoised_16000_new/",
         model_dirs=model_dirs,
-        output_json="pesq_results_10_epoch_32000_testing_old.json"
+        output_json="pesq_results_30_epoch_16000_new.json",
     )

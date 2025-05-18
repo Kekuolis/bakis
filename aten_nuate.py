@@ -30,6 +30,17 @@ def c2d_zoh_complex(A_c_diag: torch.Tensor, B_c: torch.Tensor, dt: float):
     )
     B_d = B_c * factor.unsqueeze(0)
     return A_d_diag, B_d
+
+class ResidualDenoiser(nn.Module):
+    def __init__(self, base_model):
+        super().__init__()
+        self.base_model = base_model
+
+    def forward(self, noisy):
+        noise_estimate = self.base_model(noisy)
+        denoised_output = noisy - noise_estimate
+        return denoised_output
+
 class SSMLayerFFTComplex(nn.Module):
     def __init__(self, in_ch, out_ch, state_dim=256, dt=1.0):
         """
