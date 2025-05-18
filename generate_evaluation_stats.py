@@ -1,86 +1,86 @@
 import json
 import numpy as np
 from typing import Union, Dict, Any
+import re
 
-def summarize_pesq_json(
+import statistics
+from typing import Union, Dict, Any
+import math
+
+def summarize_pesq_json_detailed(
     data_or_path: Union[str, Dict[str, Any]]
-) -> Dict[str, Dict[str, Dict[str, float]]]:
+) -> Dict[str, Dict[str, Dict[str, Dict[str, float]]]]:
     """
-    Summarize PESQ scores from a JSON file or dict.
-
-    Parameters
-    ----------
-    data_or_path : str or dict
-        - If str: path to a JSON file containing either:
-            { "<model>": { "<file>": { "clean_vs_noisy": float, "clean_vs_denoised": float, ... }, ... }, ... }
-          or
-            { "results": { <as above> }, ... }
-        - If dict: the same structure already loaded.
-
-    Returns
-    -------
-    summary : dict
-        {
-          "<model>": {
-            "clean_vs_noisy": {
-              "count": int,
-              "mean": float,
-              "median": float,
-              "std": float,
-              "min": float,
-              "max": float
-            },
-            "clean_vs_denoised": { … },
-            …
-          },
-          …
-        }
+    Summarize PESQ scores per noise level (5–40 dB), deterministically, with full stats.
     """
-    # Load from file if necessary
+    # 1) load JSON
     if isinstance(data_or_path, str):
         with open(data_or_path, 'r') as f:
             data = json.load(f)
     else:
         data = data_or_path
-
-    # Drill down if wrapped in a "results" key
     results = data.get("results", data)
 
-    summary: Dict[str, Dict[str, Dict[str, float]]] = {}
-    for model_name, file_dict in results.items():
-        # collect lists of scores per metric
-        metrics_data: Dict[str, list] = {}
-        for fname, scores in file_dict.items():
+    noise_re = re.compile(r"(\d+)[dD][bB]")
+
+    summary: Dict[str, Dict[str, Dict[str, Dict[str, float]]]] = {}
+    # 2) sort model names for deterministic iteration
+    for model_name in sorted(results.keys()):
+        file_dict = results[model_name]
+        # collects: metrics_data[noise_db][metric] = list of floats
+        metrics_data: Dict[int, Dict[str, list]] = {}
+
+        # 3) sort filenames so the append‐order never changes
+        for fname in sorted(file_dict.keys()):
+            scores = file_dict[fname]
             if not isinstance(scores, dict):
                 continue
-            for metric, value in scores.items():
+
+            m = noise_re.search(fname)
+            if not m:
+                continue
+            noise_db = int(m.group(1))
+            if not (5 <= noise_db <= 40):
+                continue
+
+            bucket = metrics_data.setdefault(noise_db, {})
+            # 4) sort metric keys too (optional but extra-safe)
+            for metric in sorted(scores.keys()):
                 try:
-                    val = float(value)
+                    val = float(scores[metric])
                 except (TypeError, ValueError):
                     continue
-                metrics_data.setdefault(metric, []).append(val)
+                bucket.setdefault(metric, []).append(val)
 
-        # compute summary stats
+        # 5) compute stats with math.fsum / statistics for order‐invariant sums
         summary[model_name] = {}
-        for metric, values in metrics_data.items():
-            arr = np.array(values, dtype=float)
-            if arr.size == 0:
-                continue
-            summary[model_name][metric] = {
-                "count": int(arr.size),
-                "mean":   float(arr.mean()),
-                "median": float(np.median(arr)),
-                "std":    float(arr.std(ddof=1)) if arr.size > 1 else 0.0,
-                "min":    float(arr.min()),
-                "max":    float(arr.max()),
-            }
+        for noise_db in sorted(metrics_data.keys()):
+            key = f"{noise_db}dB"
+            summary[model_name][key] = {}
+            for metric, vals in metrics_data[noise_db].items():
+                cnt = len(vals)
+                if cnt == 0:
+                    continue
+                mean_   = statistics.mean(vals)            # uses math.fsum
+                median_ = statistics.median(vals)
+                std_    = statistics.stdev(vals) if cnt > 1 else 0.0
+                min_    = min(vals)
+                max_    = max(vals)
+
+                summary[model_name][key][metric] = {
+                    "count":  cnt,
+                    "mean":   mean_,
+                    # "median": median_,
+                    # "std":    std_,
+                    # "min":    min_,
+                    # "max":    max_,
+                }
 
     return summary
-
 # Example usage:
 if __name__ == "__main__":
     # as a file
-    stats = summarize_pesq_json("./results/pesq_results_10_epoch_32000pesq_results_10_epoch_64000_gain_eq.json")
+    stats = summarize_pesq_json_detailed("./results/pesq_results_20_epoch_16000.json")
     print(json.dumps(stats, indent=2))
 
     # or on a loaded dict

@@ -12,7 +12,7 @@ import math
 from typing import List, Dict
 import time
 import re
-from aten_nuate import VariantATENNuate, ResidualDenoiser
+from aten_nuate import VariantATENNuate
 
 # --- Helper to find & load the latest checkpoint for one variant ----
 
@@ -55,7 +55,7 @@ for v in variants:
     print(f"\n=== Loading variant: {prefix} ===")
 
     # 1) instantiate model+opt+sch
-    model     = ResidualDenoiser(VariantATENNuate(**v).to(device))
+    model     = VariantATENNuate(**v).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=5e-3, weight_decay=0.02)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100)
 

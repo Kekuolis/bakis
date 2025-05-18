@@ -31,7 +31,7 @@ def profile_model(model: nn.Module, input_shape: tuple, sample_rate: int = 16000
     macs   = flops.total() / 1e6  # in millions
 
     # compute latency (this part doesn’t involve tensors)
-    latency = 1000.0 * getattr(model, 'compute_latency', lambda sr: 0)()
+    latency = 1000.0 * getattr(model, 'compute_latency', lambda sr: 0)(sample_rate)
 
     return {"macs_million": macs, "latency_ms": latency}
 # --- Ablation variants setup ----------------------------------------------
