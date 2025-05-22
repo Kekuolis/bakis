@@ -83,7 +83,7 @@ if __name__ == "__main__":
     evaluate_all_pairs(
         clean_dir="./irasai/test",
         noisy_dir="./irasai/test/NOISY",
-        denoised_base_dir="/home/kek/Documents/bakis/deep_state/irasai/test/enhanced_outputs_20_epoch_denoised_16000_gradual/",
+        denoised_base_dir="/home/kek/Documents/bakis/deep_state/irasai/test/enhanced_outputs_20_epoch_denoised_16000_no_dc",
         model_dirs=model_dirs,
-        output_json="pesq_results_20_epoch_16000_gradual.json",
+        output_json="16000_pesq_eval_20ep_nrml.json",
     )

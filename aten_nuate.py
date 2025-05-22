@@ -296,6 +296,9 @@ class CausalPreConv(nn.Module):
 class ATENNuate(nn.Module):
     def __init__(self, sample_rate: int = 16000):
         super().__init__()
+        self.skip_gates = nn.ParameterList([
+            nn.Parameter(torch.zeros(1)) for _ in self.skip_projs
+        ])
         # sample period (seconds per sample)
         self.dt = 1.0 / sample_rate
         self.state_dim = 256
@@ -381,7 +384,8 @@ class ATENNuate(nn.Module):
             skip = self.skip_projs[idx](skip)
             if skip.size(2) != x.size(2):
                 x = F.pad(x, (0, skip.size(2) - x.size(2)))
-            x = x + skip
+            gate = torch.sigmoid(self.skip_gates[idx])
+            x = gate * skip + (1-gate) * x
 
         # Explicit high-quality resampling to EXACT input length T0
         if x.size(2) != T0:
