@@ -21,7 +21,7 @@ def load_latest_checkpoint_if_exists(model, prefix, ckpt_dir='checkpoints', devi
     print(f"✅ Loaded checkpoint: {latest}")
     return True
 
-def apply_models_to_directory(input_dir, output_base, ckpt_dir='checkpoints', batch_size=4):
+def apply_models_to_directory(input_dir, output_base, ckpt_dir='checkpoints', batch_size=20):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}\n")
     

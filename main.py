@@ -113,7 +113,7 @@ if __name__ == "__main__":
 
         # 1) Instantiate fresh model / optimizer / scheduler
         model     = VariantATENNuate(**v).to(device)
-        optimizer = torch.optim.AdamW(model.parameters(), lr=5e-3, weight_decay=0.05)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=0.02)
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs)
 
         # 2) Resume from latest checkpoint, if any
