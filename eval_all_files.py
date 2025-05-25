@@ -83,7 +83,7 @@ if __name__ == "__main__":
     evaluate_all_pairs(
         clean_dir="./irasai/test",
         noisy_dir="./irasai/test/NOISY",
-        denoised_base_dir="./irasai/test/enhanced_outputs_100_epochs_denoised_16000_0.005>0.001lr_0.002w/",
+        denoised_base_dir="./irasai/test/enhanced_outputs_100_epochs_denoised_16000_0.005_0.002w/",
         model_dirs=model_dirs,
-        output_json="pesql_eval_100ep_trainable_0.005>0.001lr_0.002w.json", # 
+        output_json="pesql_eval_100ep_trainable_0.005_0.002w.json", # 
     )
