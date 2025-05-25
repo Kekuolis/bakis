@@ -76,14 +76,14 @@ if __name__ == "__main__":
     model_dirs = [
         # "preconv_True_norm_layernorm_act_relu",
         # "preconv_False_norm_layernorm_act_relu",
-        # "preconv_True_norm_layernorm_act_silu",
+        "preconv_True_norm_layernorm_act_silu",
         "preconv_False_norm_layernorm_act_silu",
     ]
 
     evaluate_all_pairs(
         clean_dir="./irasai/test",
         noisy_dir="./irasai/test/NOISY",
-        denoised_base_dir="./aTENNuate/denoised_samples",
+        denoised_base_dir="./irasai/test/enhanced_outputs_100_epochs_denoised_16000_0.005>0.001lr_0.002w/",
         model_dirs=model_dirs,
-        output_json="pesql_eval_wiener_denoised.json", # 
+        output_json="pesql_eval_100ep_trainable_0.005>0.001lr_0.002w.json", # 
     )

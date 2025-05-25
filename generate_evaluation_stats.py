@@ -80,7 +80,7 @@ def summarize_pesq_json_detailed(
 # Example usage:
 if __name__ == "__main__":
     # as a file
-    stats = summarize_pesq_json_detailed("./pesql_eval_pretrained_denoised.json") # output > stats_20e_nrml_16000.json
+    stats = summarize_pesq_json_detailed("./pesql_eval_100ep_trainable_0.005>0.001lr_0.002w.json") # output > stats_20e_nrml_16000.json
     print(json.dumps(stats, indent=2))
 
     # or on a loaded dict
