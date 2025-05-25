@@ -15,7 +15,7 @@ from aten_nuate import VariantATENNuate
 import math
 from typing import List, Dict
 import time
-
+import math
 
 # 3) MAIN ENTRYPOINT --------------------------------------------------------
 
@@ -111,11 +111,25 @@ if __name__ == "__main__":
         ckpt_dir = "checkpoints"
         os.makedirs(ckpt_dir, exist_ok=True)
 
-        # 1) Instantiate fresh model / optimizer / scheduler
+        # 1) Instantiate fresh model / optimizer / scheduler (with warm-up!)
         model     = VariantATENNuate(**v).to(device)
         optimizer = torch.optim.AdamW(model.parameters(), lr=5e-3, weight_decay=0.02)
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs)
 
+        # linear warm-up for the first 1% of epochs, then cosine decay
+        import math
+        from torch.optim.lr_scheduler import LambdaLR
+
+        # at least 1 epoch of warm-up
+        warmup_epochs = max(1, int(0.01 * num_epochs))
+        def lr_lambda_fn(epoch):
+            # epoch is 0‐indexed, so epoch=0 → lr factor = 1/warmup_epochs
+            if epoch < warmup_epochs:
+                return float(epoch + 1) / warmup_epochs
+            # cosine schedule over the remaining epochs
+            progress = float(epoch - warmup_epochs) / float(num_epochs - warmup_epochs)
+            return 0.5 * (1.0 + math.cos(math.pi * progress))
+
+        scheduler = LambdaLR(optimizer, lr_lambda=lr_lambda_fn)
         # 2) Resume from latest checkpoint, if any
         pattern    = os.path.join(ckpt_dir, f"{prefix}_e*.pth")
         candidates = sorted(glob.glob(pattern), key=os.path.getmtime)

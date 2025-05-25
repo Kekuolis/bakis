@@ -360,9 +360,6 @@ class ATENNuate(nn.Module):
             nn.Conv1d( 32,  16, 1),  # enc1→dec4
             nn.Conv1d( 16,   1, 1),  # enc0→dec5 (optional—often you skip this last residual)
         ])
-        self.skip_gates = nn.ParameterList([
-            nn.Parameter(torch.zeros(1)) for _ in self.skip_projs
-        ])
         self.final_upsamplers = nn.ModuleDict()
         
 
@@ -385,8 +382,8 @@ class ATENNuate(nn.Module):
             skip = self.skip_projs[idx](skip)
             if skip.size(2) != x.size(2):
                 x = F.pad(x, (0, skip.size(2) - x.size(2)))
-            gate = torch.sigmoid(self.skip_gates[idx])
-        x = gate * skip + (1-gate) * x
+            x = x + skip
+        
 
         # Explicit high-quality resampling to EXACT input length T0
         if x.size(2) != T0:
